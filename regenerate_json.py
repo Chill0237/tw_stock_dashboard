@@ -113,9 +113,9 @@ def main() -> None:
 
     latest_date = common_dates[-1]
     # 使用 export_dashboard_json_safe 內建的預設路徑解析邏輯
-    # _pkg_root = quant_system_v2/ → output = _pkg_root/../web/api ❌
-    # 正確路徑: _pkg_root/web/api/
-    output_dir = os.path.join(_pkg_root, "web", "api")
+    # _pkg_root = quant_system_v2/ → output = _pkg_root/../docs/api ❌
+    # 正確路徑: _pkg_root/docs/api/
+    output_dir = os.path.join(_pkg_root, "docs", "api")
     _write_static_api_files(output_dir, latest_date)
 
     # ──────────────────────────────────────────

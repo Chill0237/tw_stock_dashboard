@@ -574,7 +574,7 @@ def export_dashboard_json_safe(
     """
     export_dashboard_json 的封裝版本。
 
-    若 output_dir 未指定，預設為 PROJECT_ROOT/web/api/。
+    若 output_dir 未指定，預設為 PROJECT_ROOT/docs/api/。
 
     成功寫入 dashboard JSON 後，自動：
       1. 複製為 latest.json
@@ -595,7 +595,7 @@ def export_dashboard_json_safe(
         _project_root = os.path.dirname(
             os.path.dirname(os.path.abspath(__file__))
         )
-        output_dir = os.path.join(_project_root, "web", "api")
+        output_dir = os.path.join(_project_root, "docs", "api")
 
     output_path = os.path.join(output_dir, f"dashboard_{d}.json")
 
