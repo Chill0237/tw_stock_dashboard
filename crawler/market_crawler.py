@@ -21,6 +21,9 @@ import pandas as pd
 
 from quant_system_v2.config.settings import MAX_RETRIES, DEFAULT_TIMEOUT, USER_AGENTS
 
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 logger = logging.getLogger(__name__)
 
 
@@ -61,9 +64,9 @@ def _fetch_json(
             logger.info(f"[{label}] 請求中 (第 {attempt + 1}/{MAX_RETRIES} 次)...")
 
             if method == "POST":
-                res = requests.post(url, data=payload, params=params, headers=headers, timeout=DEFAULT_TIMEOUT)
+                res = requests.post(url, data=payload, params=params, headers=headers, timeout=DEFAULT_TIMEOUT, verify=False)
             else:
-                res = requests.get(url, params=params, headers=headers, timeout=DEFAULT_TIMEOUT)
+                res = requests.get(url, params=params, headers=headers, timeout=DEFAULT_TIMEOUT, verify=False)
 
             if res.status_code == 200:
                 return res.json()
@@ -99,7 +102,7 @@ def _fetch_csv_text(
                 time.sleep(wait)
 
             logger.info(f"[{label}] 請求中 (第 {attempt + 1}/{MAX_RETRIES} 次)...")
-            res = requests.get(url, params=params, headers=headers, timeout=DEFAULT_TIMEOUT * 2)
+            res = requests.get(url, params=params, headers=headers, timeout=DEFAULT_TIMEOUT * 2, verify=False)
 
             if res.status_code == 200:
                 return res.text
