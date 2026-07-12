@@ -45,7 +45,12 @@ from quant_system_v2.core.volume_screener import (
     weekly_volume_ratio,
 )
 from quant_system_v2.core.tdcc_analyzer import large_shareholder_rank
-from quant_system_v2.utils.filters import filter_etf, filter_active_equities
+from quant_system_v2.utils.filters import (
+    SecurityCategory,
+    filter_by_type,
+    filter_etf,
+    filter_active_equities,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -264,16 +269,38 @@ def export_dashboard_json(
     else:
         df_tdcc_history = load_recent_dataframes("weekly_tdcc", 10)
 
-    # ── 全量過濾 ETF（影響所有指標：法人買賣超、融資券、連買、爆量、大戶）──
-    # 在所有 DataFrame 交給 Core 運算前排除 ETF，確保前端榜單無 ETF 標的
+    # ── 全量過濾非現貨商品（影響所有指標：法人買賣超、融資券、連買、爆量、大戶）──
+    # 在所有 DataFrame 交給 Core 運算前排除 ETF / 權證 / REITs / ETN，
+    # 確保前端榜單僅顯示一般上市櫃股票
+    _EXCLUDED_NON_EQUITY = [
+        SecurityCategory.ETF,
+        SecurityCategory.WARRANT,
+        SecurityCategory.REIT,
+        SecurityCategory.ETN,
+    ]
     for _df in [df_chip_single, df_margin_single, df_price_single]:
         if _df is not None and not _df.empty and "stock_id" in _df.columns:
-            filter_etf(_df, id_col="stock_id", inplace=True)
+            filter_by_type(
+                _df,
+                exclude=_EXCLUDED_NON_EQUITY,
+                id_col="stock_id",
+                inplace=True,
+            )
     for _df in [df_chip_history, df_price_history]:
         if _df is not None and not _df.empty and "stock_id" in _df.columns:
-            filter_etf(_df, id_col="stock_id", inplace=True)
+            filter_by_type(
+                _df,
+                exclude=_EXCLUDED_NON_EQUITY,
+                id_col="stock_id",
+                inplace=True,
+            )
     if df_tdcc_history is not None and not df_tdcc_history.empty and "證券代號" in df_tdcc_history.columns:
-        filter_etf(df_tdcc_history, id_col="證券代號", inplace=True)
+        filter_by_type(
+            df_tdcc_history,
+            exclude=_EXCLUDED_NON_EQUITY,
+            id_col="證券代號",
+            inplace=True,
+        )
 
     # 預備合併歷史資料（for streak）
     merged_history = _build_merged_history(df_chip_history, df_price_history)
