@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
     const dateSelect = document.getElementById("date-select");
-    const chipDateSpan = document.getElementById("chip-data-date");
+    const statusBar = document.getElementById("data-status");
 
     // ──────────────────────────────────────────
     // 28 項指標對照表（7 個頁籤）
@@ -46,6 +46,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // ──────────────────────────────────────────
     // 初始化
     // ──────────────────────────────────────────
+    const _fullStatusPromise = fetch("./api/status.json").then(r => r.json()).catch(() => null);
+
     buildCards();
     setupTabListeners();
     loadDropdownDates();
@@ -91,7 +93,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ──────────────────────────────────────────
-    // 2. 頁籤切換（嚴格 hidden 控制，不留殘留）
+    // 2. 頁籤切換
     // ──────────────────────────────────────────
     function setupTabListeners() {
         const buttons = document.querySelectorAll(".tab-btn");
@@ -143,28 +145,25 @@ document.addEventListener("DOMContentLoaded", () => {
             const res = await fetch(url);
             const payload = await res.json();
             const rankings = payload.rankings || {};
+            const dataDate = payload.data_date || "";
+            let dataStatus = payload.data_status || {};
 
-            // 提取大戶資料日期（從 chip_large 類指標的第一筆 data_date）
-            let chipDate = "";
-            for (const key of ["chip_large_ratio_buy", "chip_large_ratio_sell", "chip_large_count_buy", "chip_large_count_sell"]) {
-                const items = rankings[key];
-                if (items && items.length > 0 && items[0].data_date) {
-                    chipDate = items[0].data_date;
-                    break;
+            // 若 dashboard JSON 沒有 data_status（舊版），從全量 status.json 補
+            if (!dataStatus || Object.keys(dataStatus).length === 0) {
+                const full = await _fullStatusPromise;
+                if (full && full.dates && full.dates[dataDate]) {
+                    dataStatus = full.dates[dataDate];
                 }
             }
-            if (chipDate) {
-                const d = chipDate.replace(/-/g, "");
-                chipDateSpan.textContent = `大戶資料日期：${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
-            } else {
-                chipDateSpan.textContent = "";
-            }
+
+            renderStatusBar(dataDate, dataStatus);
 
             Object.keys(METRIC_CONFIGS).forEach(key => {
                 renderTable(key, rankings[key] || []);
             });
         } catch (e) {
             console.error("fetch error:", e);
+            renderStatusBar("", null);
             Object.keys(METRIC_CONFIGS).forEach(key => {
                 const tbody = document.getElementById(`body-${key}`);
                 if (tbody) tbody.innerHTML = `<tr><td colspan="3" class="text-center py-3 text-rose-800 text-2xs">error</td></tr>`;
@@ -242,7 +241,50 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ──────────────────────────────────────────
-    // 7. 日期切換事件
+    // 7. 資料狀態列渲染
+    // ──────────────────────────────────────────
+    function renderStatusBar(dataDate, dataStatus) {
+        if (!statusBar) return;
+        if (!dataDate || !dataStatus) {
+            statusBar.innerHTML = `<span class="text-3xs text-slate-700">狀態載入中...</span>`;
+            return;
+        }
+
+        const items = [
+            { label: "價量上市", key: "price_twse" },
+            { label: "價量上櫃", key: "price_tpex" },
+            { label: "法人上市", key: "chip_twse" },
+            { label: "法人上櫃", key: "chip_tpex" },
+            { label: "融資券上市", key: "margin_twse" },
+            { label: "融資券上櫃", key: "margin_tpex" },
+            { label: "大戶",      key: "tdcc_date", isDate: true },
+        ];
+
+        const dots = items.map(item => {
+            let ok, extra = "";
+            if (item.isDate) {
+                ok = !!dataStatus[item.key];
+                if (ok && dataStatus[item.key]) {
+                    const d = String(dataStatus[item.key]).replace(/-/g, "");
+                    extra = d.slice(4,6) + "/" + d.slice(6,8);
+                }
+            } else {
+                ok = !!dataStatus[item.key];
+            }
+            const color = ok ? "text-emerald-500" : "text-slate-700";
+            const dot = `<span class="${color}">●</span>`;
+            const extraHtml = extra ? `<span class="text-slate-600">${extra}</span>` : "";
+            return `<span class="inline-flex items-center gap-1">${dot} ${item.label} ${extraHtml}</span>`;
+        });
+
+        statusBar.innerHTML = `
+            <span class="text-slate-500 text-3xs mr-1">${dataDate.slice(0,4)}-${dataDate.slice(4,6)}-${dataDate.slice(6,8)}</span>
+            ${dots.join('<span class="text-slate-800 mx-0.5">|</span>')}
+        `;
+    }
+
+    // ──────────────────────────────────────────
+    // 8. 日期切換事件
     // ──────────────────────────────────────────
     dateSelect.addEventListener("change", (e) => {
         fetchAndRender(e.target.value);

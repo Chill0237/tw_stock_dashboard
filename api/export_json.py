@@ -51,6 +51,7 @@ from quant_system_v2.utils.filters import (
     filter_etf,
     filter_active_equities,
 )
+from quant_system_v2.utils.status_tracker import load_status
 
 logger = logging.getLogger(__name__)
 
@@ -533,6 +534,7 @@ def export_dashboard_json(
         "update_time": now_str,
         "data_date": d,
         "rankings": rankings,
+        "data_status": load_status(d),
     }
 
     # ──────────────────────────────────────────
