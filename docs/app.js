@@ -7,15 +7,15 @@ document.addEventListener("DOMContentLoaded", () => {
     // ──────────────────────────────────────────
     const METRIC_CONFIGS = {
         // 1. 法人買超（金額）(4) — 後端單位為千元
-        "buysell_total_buy_amount":    { tab:"tab-buy-amount", title:"三大法人買超",        unit:"百萬", valueKey:"value", isBuy:true },
-        "buysell_foreign_buy_amount":  { tab:"tab-buy-amount", title:"外資買超",            unit:"百萬", valueKey:"value", isBuy:true },
-        "buysell_trust_buy_amount":    { tab:"tab-buy-amount", title:"投信買超",            unit:"百萬", valueKey:"value", isBuy:true },
-        "buysell_prop_buy_amount":     { tab:"tab-buy-amount", title:"自營商買超",          unit:"百萬", valueKey:"value", isBuy:true },
+        "buysell_total_buy_amount":    { tab:"tab-buy-amount", title:"三大法人買超",        unit:"百萬元", valueKey:"value", isBuy:true },
+        "buysell_foreign_buy_amount":  { tab:"tab-buy-amount", title:"外資買超",            unit:"百萬元", valueKey:"value", isBuy:true },
+        "buysell_trust_buy_amount":    { tab:"tab-buy-amount", title:"投信買超",            unit:"百萬元", valueKey:"value", isBuy:true },
+        "buysell_prop_buy_amount":     { tab:"tab-buy-amount", title:"自營商買超",          unit:"百萬元", valueKey:"value", isBuy:true },
         // 2. 法人賣超（金額）(4) — 後端單位為千元
-        "buysell_total_sell_amount":   { tab:"tab-sell-amount", title:"三大法人賣超",        unit:"百萬", valueKey:"value", isBuy:false },
-        "buysell_foreign_sell_amount": { tab:"tab-sell-amount", title:"外資賣超",            unit:"百萬", valueKey:"value", isBuy:false },
-        "buysell_trust_sell_amount":   { tab:"tab-sell-amount", title:"投信賣超",            unit:"百萬", valueKey:"value", isBuy:false },
-        "buysell_prop_sell_amount":    { tab:"tab-sell-amount", title:"自營商賣超",          unit:"百萬", valueKey:"value", isBuy:false },
+        "buysell_total_sell_amount":   { tab:"tab-sell-amount", title:"三大法人賣超",        unit:"百萬元", valueKey:"value", isBuy:false },
+        "buysell_foreign_sell_amount": { tab:"tab-sell-amount", title:"外資賣超",            unit:"百萬元", valueKey:"value", isBuy:false },
+        "buysell_trust_sell_amount":   { tab:"tab-sell-amount", title:"投信賣超",            unit:"百萬元", valueKey:"value", isBuy:false },
+        "buysell_prop_sell_amount":    { tab:"tab-sell-amount", title:"自營商賣超",          unit:"百萬元", valueKey:"value", isBuy:false },
         // 3. 法人買超（張數）(4)
         "buysell_total_buy_shares":    { tab:"tab-buy-shares", title:"三大法人買超",        unit:"張", valueKey:"value", isBuy:true },
         "buysell_foreign_buy_shares":  { tab:"tab-buy-shares", title:"外資買超",            unit:"張", valueKey:"value", isBuy:true },
@@ -27,10 +27,10 @@ document.addEventListener("DOMContentLoaded", () => {
         "buysell_trust_sell_shares":   { tab:"tab-sell-shares", title:"投信賣超",            unit:"張", valueKey:"value", isBuy:false },
         "buysell_prop_sell_shares":    { tab:"tab-sell-shares", title:"自營商賣超",          unit:"張", valueKey:"value", isBuy:false },
         // 5. 融資券增減 (4) — 後端單位為千元
-        "margin_fin_buy":    { tab:"tab-margin", title:"融資增加",      unit:"百萬", valueKey:"value", isBuy:true },
-        "margin_fin_sell":   { tab:"tab-margin", title:"融資減少",      unit:"百萬", valueKey:"value", isBuy:false },
-        "margin_mar_buy":    { tab:"tab-margin", title:"融券增加",      unit:"百萬", valueKey:"value", isBuy:false },
-        "margin_mar_sell":   { tab:"tab-margin", title:"融券減少",      unit:"百萬", valueKey:"value", isBuy:true },
+        "margin_fin_buy":    { tab:"tab-margin", title:"融資增加",      unit:"百萬元", valueKey:"value", isBuy:true },
+        "margin_fin_sell":   { tab:"tab-margin", title:"融資減少",      unit:"百萬元", valueKey:"value", isBuy:false },
+        "margin_mar_buy":    { tab:"tab-margin", title:"融券增加",      unit:"百萬元", valueKey:"value", isBuy:false },
+        "margin_mar_sell":   { tab:"tab-margin", title:"融券減少",      unit:"百萬元", valueKey:"value", isBuy:true },
         // 6. 爆量 (4)
         "surge_daily":   { tab:"tab-momentum", title:"單日爆量倍數",  unit:"倍", valueKey:"surge_ratio",   isBuy:true },
         "surge_weekly":  { tab:"tab-momentum", title:"週量增溫倍數",  unit:"倍", valueKey:"weekly_ratio",  isBuy:true },
@@ -72,8 +72,8 @@ document.addEventListener("DOMContentLoaded", () => {
             card.innerHTML = `
                 <div class="p-3 border border-slate-800 h-full flex flex-col">
                     <div class="flex justify-between items-baseline mb-2 pb-1 border-b border-slate-800">
-                        <span class="text-xs font-medium text-slate-400">${cfg.title}</span>
-                        <span class="text-2xs text-slate-600">${cfg.unit}</span>
+                        <span class="text-sm font-medium text-slate-400">${cfg.title}</span>
+                        <span class="text-xs text-slate-600">${cfg.unit}</span>
                     </div>
                     <table class="table-fixed w-full text-xs">
                         <thead>
@@ -219,8 +219,8 @@ document.addEventListener("DOMContentLoaded", () => {
     function formatValue(val, unit) {
         if (val == null || isNaN(val)) return "--";
         const n = Number(val);
-        if (unit === "百萬") {
-            return (n / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 }) + "百萬";
+        if (unit === "百萬元") {
+            return (n / 1000).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
         }
         if (unit === "元") {
             return (n / 10000).toLocaleString(undefined, { maximumFractionDigits: 0 }) + "萬";
