@@ -25,6 +25,7 @@ from quant_system_v2.api.export_json import (
     export_dashboard_json_safe,
     _write_static_api_files,
 )
+from quant_system_v2.utils.status_tracker import save_status
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,8 @@ def trigger_tdcc_backfill(tdcc_date_str: str) -> int:
                 date_str, history_max_date=date_str
             )
             if result:
+                # 同步更新 status.json：此日期的 tdcc_date 已可用
+                save_status(date_str, {"tdcc_date": tdcc_date_str})
                 count += 1
         except Exception as e:
             logger.error(

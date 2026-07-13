@@ -32,6 +32,7 @@ from quant_system_v2.api.export_json import (
     _write_static_api_files,
 )
 from quant_system_v2.config.settings import DATA_DIR
+from quant_system_v2.utils.status_tracker import save_status
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +120,28 @@ def main() -> None:
     _write_static_api_files(output_dir, latest_date)
 
     # ──────────────────────────────────────────
-    # 4. 總結
+    # 4. 同步 status.json：掃描 weekly_tdcc，更新每個日期的 tdcc_date
+    # ──────────────────────────────────────────
+    logger.info("")
+    logger.info("─" * 40)
+    logger.info("同步 status.json 的 tdcc_date ...")
+
+    all_tdcc_dates = sorted(_get_parquet_dates("weekly_tdcc"))
+    if all_tdcc_dates and common_dates:
+        for date_str in common_dates:
+            # 找出 <= date_str 的最後一期集保日期
+            eligible = [t for t in all_tdcc_dates if t <= date_str]
+            if eligible:
+                latest_tdcc = eligible[-1]
+                save_status(date_str, {"tdcc_date": latest_tdcc})
+        logger.info(f"  已同步 {len(common_dates)} 個日期的 tdcc_date (來源: {all_tdcc_dates[0]} ~ {all_tdcc_dates[-1]})")
+    else:
+        logger.info("  無 TDCC 資料或無交易日，跳過")
+
+    logger.info("")
+
+    # ──────────────────────────────────────────
+    # 5. 總結
     # ──────────────────────────────────────────
     logger.info("")
     logger.info("=" * 55)
