@@ -186,7 +186,6 @@ def main() -> None:
     logger.info(f"{'='*50}")
     logger.info(f"  daily_price 歷史回補啟動")
     logger.info(f"  目標天數: {args.days} 日")
-    logger.info(f"  最大請求數/次: {MAX_REQUESTS_PER_RUN}")
     logger.info(f"{'='*50}")
     logger.info("")
 
@@ -208,43 +207,29 @@ def main() -> None:
         logger.info("[乾執行] 將回補以下日期:")
         for d in missing:
             logger.info(f"  {d}")
-        # 乾執行也顯示預計需執行的次數
-        est_runs = (len(missing) + MAX_REQUESTS_PER_RUN - 1) // MAX_REQUESTS_PER_RUN
-        logger.info(f"  預計需執行 {est_runs} 次（每次最多 {MAX_REQUESTS_PER_RUN} 筆）")
         return
 
     # 3. 逐筆回補（由近到遠）
     success_count = 0
     skip_count = 0
-    request_count = 0
+    total = len(missing)
 
-    for d in missing:
-        # 檢查每日請求上限
-        if request_count >= MAX_REQUESTS_PER_RUN:
-            remaining = len(missing) - (success_count + skip_count)
-            logger.warning(
-                f"⚠️  已達本次執行請求上限 ({MAX_REQUESTS_PER_RUN})，"
-                f"剩餘 {remaining} 個日期將於下次執行續傳。"
-            )
-            break
-
+    for idx, d in enumerate(missing, 1):
         # 再次確認是否已存在（避免 race condition / 前次執行已補）
         existing_now = _get_existing_dates(TABLE_NAME)
         if d in existing_now:
             skip_count += 1
             continue
 
-        logger.info(f"[{request_count + 1}/{MAX_REQUESTS_PER_RUN}] 回補 {d}...")
+        logger.info(f"[{idx}/{total}] 回補 {d}...")
         ok = _crawl_single_day(d)
         if ok:
             success_count += 1
         else:
             skip_count += 1
 
-        request_count += 1
-
         # 隨機間隔（避免觸發 API 速率限制）
-        if request_count < MAX_REQUESTS_PER_RUN:
+        if idx < total:
             sleep_time = random.uniform(MIN_SLEEP, MAX_SLEEP)
             logger.info(f"  等待 {sleep_time:.1f}s...")
             time.sleep(sleep_time)
@@ -260,11 +245,6 @@ def main() -> None:
     logger.info(f"  回補完成: 成功 {success_count}, 跳過 {skip_count}")
     logger.info(f"  目前總交易日數: {len(_get_existing_dates(TABLE_NAME))}")
     logger.info(f"{'='*50}")
-
-    # 5. 若仍有剩餘，提醒使用者再次執行
-    remaining = len(missing) - (success_count + skip_count)
-    if remaining > 0:
-        logger.info(f"⚠️  剩餘約 {remaining} 個日期尚未回補，請再次執行本腳本續傳。")
 
 
 if __name__ == "__main__":
