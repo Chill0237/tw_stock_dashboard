@@ -133,11 +133,11 @@ def _calc_mas(series: pd.Series, window: int) -> pd.Series:
 def _compute_price_with_mas(price_df: pd.DataFrame) -> pd.DataFrame:
     """
     對 price DataFrame（已排序 ascending by date）計算各期 MA。
-    輸入須包含欄位：date, open, high, low, close, volume
+    輸入須包含欄位：date, close_price
     回傳附加 ma5~ma240 的 DataFrame（由舊到新）。
     """
     df = price_df.copy().sort_values("date")
-    close = df["close"].astype(float)
+    close = df["close_price"].astype(float)
 
     for w in MA_WINDOWS:
         col = MA_COLUMNS[w]
@@ -457,9 +457,17 @@ def generate_all() -> int:
     logger.info("[載入] 集保歷史 (6 期)...")
     df_tdcc_all = _load_tdcc_history_all(tdcc_dir, TDCC_MAX_RECORDS)
 
-    # 5. 取得所有股票 ID
+    # 5. 過濾非現貨商品（ETF/權證/REITs/ETN）
+    logger.info(f"[過濾] 排除非現貨商品...")
+    df_price_all = filter_by_type(
+        df_price_all,
+        exclude=_EXCLUDED_NON_EQUITY,
+        id_col="stock_id",
+    )
+
+    # 6. 取得所有股票 ID
     stock_ids = set(df_price_all["stock_id"].unique())
-    logger.info(f"  股票總數: {len(stock_ids)}")
+    logger.info(f"  股票總數 (已過濾): {len(stock_ids)}")
 
     # 6. 建立 index
     index_data = _build_index_from_parquet(stock_ids)
@@ -785,10 +793,7 @@ def update_daily(target_date: str) -> int:
     df_margin_today = load_dataframe("daily_margin", d)
     df_chip_today = load_dataframe("daily_chip", d)
 
-    # 2. 取得當日有價量的股票 ID
-    stock_ids_today = set(df_price_today["stock_id"].unique())
-
-    # 3. 過濾非現貨商品
+    # 2. 過濾非現貨商品（先過濾，再取 stock_ids）
     # (已由 run.py 的 crawler 階段過濾，但為安全再過濾一次)
     for _df in [df_price_today, df_margin_today, df_chip_today]:
         if _df is not None and not _df.empty and "stock_id" in _df.columns:
@@ -798,6 +803,9 @@ def update_daily(target_date: str) -> int:
                 id_col="stock_id",
                 inplace=True,
             )
+
+    # 3. 取得當日有價量的股票 ID（已過濾，僅含現貨）
+    stock_ids_today = set(df_price_today["stock_id"].unique())
 
     # 4. 逐檔更新
     tdcc_dir = os.path.join(
