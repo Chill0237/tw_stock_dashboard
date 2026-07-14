@@ -172,11 +172,22 @@ def _enrich_records(
     return records
 
 
+DASHBOARD_RETENTION_DAYS = 22
+"""Dashboard JSON 保留天數（交易日）。超過此數量的較舊檔案將被刪除。
+與使用者約定的資料保留策略：
+  - daily_price: 490 日
+  - daily_chip/margin: 30 日
+  - weekly_tdcc: 6 週
+  - dashboard json: 22 日
+"""
+
+
 def _write_static_api_files(output_dir: str, current_date: str) -> None:
     """
     完善 Static API 輸出邏輯：
       1. 複製 dashboard_{current_date}.json → latest.json
-      2. 掃描目錄下所有 dashboard_*.json 提取日期陣列 → dates.json
+      2. 掃描目錄下所有 dashboard_*.json → 只保留最新 22 個
+      3. 寫入 dates.json
     """
     # --- 1. latest.json ---
     src = os.path.join(output_dir, f"dashboard_{current_date}.json")
@@ -190,22 +201,41 @@ def _write_static_api_files(output_dir: str, current_date: str) -> None:
         except Exception as e:
             logger.error(f"  ❌ latest.json 寫入失敗: {e}")
 
-    # --- 2. dates.json ---
+    # --- 2. 掃描所有 dashboard_*.json，保留最新 22 個，其餘刪除 ---
     try:
         pattern = os.path.join(output_dir, "dashboard_*.json")
-        dates = []
+        dashboard_files = []
         for fpath in glob.glob(pattern):
             basename = os.path.basename(fpath)
             date_part = basename.replace("dashboard_", "").replace(".json", "")
-            if date_part.isdigit():
-                dates.append(date_part)
-        dates = sorted(dates, reverse=True)
+            if date_part.isdigit() and len(date_part) == 8:
+                dashboard_files.append((date_part, fpath))
+
+        # 依日期降序排序（最新在前）
+        dashboard_files.sort(key=lambda x: x[0], reverse=True)
+
+        # 保留最新 DASHBOARD_RETENTION_DAYS 個
+        to_keep = dashboard_files[:DASHBOARD_RETENTION_DAYS]
+        to_delete = dashboard_files[DASHBOARD_RETENTION_DAYS:]
+
+        for date_part, fpath in to_delete:
+            try:
+                os.remove(fpath)
+                logger.info(f"  🗑️  刪除過期 Dashboard: {os.path.basename(fpath)}")
+            except Exception as e:
+                logger.warning(f"  ⚠️  刪除失敗 {fpath}: {e}")
+
+        # 只保留的日期寫入 dates.json
+        dates = [date_part for date_part, _ in to_keep]
         dates_path = os.path.join(output_dir, "dates.json")
         with open(dates_path, "w", encoding="utf-8") as f:
             json.dump(dates, f, ensure_ascii=False)
-        logger.info(f"  ✅ dates.json 已更新 ({len(dates)} 個日期)")
+        logger.info(
+            f"  ✅ dates.json 已更新 ({len(dates)} 個日期, "
+            f"已清理 {len(to_delete)} 個過期檔案)"
+        )
     except Exception as e:
-        logger.error(f"  ❌ dates.json 寫入失敗: {e}")
+        logger.error(f"  ❌ dates.json 處理失敗: {e}")
 
 
 # ==========================================

@@ -330,6 +330,17 @@ def _phase2_export(target_date: str) -> None:
         logger.error("  ❌ Dashboard JSON 匯出失敗。")
 
 
+def _phase3_stock_update(target_date: str) -> None:
+    """執行 Phase 3：個股歷史 JSON 每日增量更新"""
+    logger.info(f"[Phase3] 個股歷史 JSON 增量更新 ({target_date})...")
+    try:
+        from quant_system_v2.api.stock_api import update_daily
+        updated = update_daily(target_date)
+        logger.info(f"  ✅ 個股 JSON 更新完成: {updated} 檔")
+    except Exception as e:
+        logger.error(f"  ❌ 個股 JSON 更新失敗: {e}", exc_info=True)
+
+
 # ==========================================
 # Main
 # ==========================================
@@ -407,8 +418,14 @@ def main() -> None:
     _phase2_export(target_date)
     logger.info("")
 
+    # ── Step 5: Phase 3 個股歷史 JSON 增量更新 ──
+    logger.info("=== Phase 3: 個股歷史 JSON 增量更新 ===")
+    logger.info("")
+    _phase3_stock_update(target_date)
+    logger.info("")
+
     logger.info(f"{'='*50}")
-    logger.info("  ✅ 所有流程執行完畢")
+    logger.info(f"  ✅ 所有流程執行完畢")
     logger.info(f"{'='*50}")
 
 
