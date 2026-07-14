@@ -86,7 +86,7 @@ def trigger_tdcc_backfill(tdcc_date_str: str) -> int:
     # ──────────────────────────────────────────
     # 3. 全域索引刷新
     # ──────────────────────────────────────────
-    output_dir = os.path.join(pkg_root, "web", "api")
+    output_dir = os.path.join(pkg_root, "docs", "api")
     _write_static_api_files(output_dir, affected[-1])
 
     logger.info(
