@@ -890,3 +890,17 @@ def update_daily(target_date: str) -> int:
 
     logger.info(f"  ✅ 增量更新完成: {update_count} 檔股票")
     return update_count
+
+
+# ==========================================
+# Entry Point
+# ==========================================
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    generate_all()
