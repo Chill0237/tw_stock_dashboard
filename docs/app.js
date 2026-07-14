@@ -34,8 +34,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // 6. 爆量 (4)
         "surge_daily":   { tab:"tab-momentum", title:"單日爆量倍數",  unit:"倍", valueKey:"surge_ratio",   isBuy:true },
         "surge_weekly":  { tab:"tab-momentum", title:"週量增溫倍數",  unit:"倍", valueKey:"weekly_ratio",  isBuy:true },
-        "streak_trust":  { tab:"tab-momentum", title:"投信連買天數",  unit:"天", valueKey:"streak_days",   isBuy:true },
-        "streak_foreign":{ tab:"tab-momentum", title:"外資連買天數",  unit:"天", valueKey:"streak_days",   isBuy:true },
+        "streak_trust":  { tab:"tab-momentum", title:"投信連買強度",  unit:"天", valueKey:"streak_days",   isBuy:true },
+        "streak_foreign":{ tab:"tab-momentum", title:"外資連買強度",  unit:"天", valueKey:"streak_days",   isBuy:true },
         // 7. 大戶增減 (4)
         "chip_large_ratio_buy":  { tab:"tab-large", title:"大戶比例增", unit:"%", valueKey:"大戶比例增幅", isBuy:true },
         "chip_large_ratio_sell": { tab:"tab-large", title:"大戶比例減", unit:"%", valueKey:"大戶比例增幅", isBuy:false },
