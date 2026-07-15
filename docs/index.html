@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chill 的台股觀測站</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-black text-slate-300 min-h-screen font-sans">
 
@@ -15,7 +17,13 @@
                 <h1 class="text-sm font-bold text-slate-100 tracking-widest uppercase">Chill 的台股觀測站</h1>
             </div>
 
-            <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-3">
+                <!-- 搜尋欄 -->
+                <div class="relative">
+                    <input id="stock-search" type="text" placeholder="🔍 搜尋股票代號/名稱"
+                        class="w-48 bg-black border border-slate-700 text-slate-300 px-2 py-1 text-xs focus:outline-none focus:border-emerald-500 placeholder-slate-600">
+                    <div id="search-dropdown" class="absolute top-full left-0 right-0 bg-black border border-slate-700 max-h-60 overflow-y-auto hidden z-[200]"></div>
+                </div>
                 <span class="text-xs text-slate-500">日期</span>
                 <select id="date-select" class="bg-black border border-slate-700 text-slate-300 px-2 py-1 text-xs focus:outline-none">
                     <option value="latest">latest</option>
@@ -52,5 +60,77 @@
     </main>
 
     <script src="app.js"></script>
+    <script src="stock-modal.js"></script>
+    <script>
+    document.addEventListener("DOMContentLoaded", () => {
+        // 初始化 StockModal
+        StockModal.init();
+
+        // ── 搜尋功能 ──
+        const searchInput = document.getElementById("stock-search");
+        const dropdown = document.getElementById("search-dropdown");
+        let searchIndex = [];
+        let debounceTimer = null;
+
+        // 載入 index.json（若 StockModal 已載入可直接用其 stockIndex，但為獨立性另載一份）
+        fetch("./api/stock/index.json").then(r => r.json()).then(data => { searchIndex = data; }).catch(() => {});
+
+        function renderDropdown(query) {
+            if (!query || query.length < 1) { dropdown.classList.add("hidden"); dropdown.innerHTML = ""; return; }
+            const q = query.toLowerCase();
+            const matches = searchIndex.filter(item =>
+                item.stock_id.toLowerCase().includes(q) || item.stock_name.toLowerCase().includes(q)
+            ).slice(0, 30);
+
+            if (!matches.length) { dropdown.classList.add("hidden"); dropdown.innerHTML = ""; return; }
+
+            dropdown.innerHTML = matches.map(item =>
+                `<div class="px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer border-b border-slate-800 last:border-0 flex justify-between" data-stock-id="${item.stock_id}">
+                    <span><span class="text-slate-500">${item.stock_id}</span> <span class="text-slate-300">${item.stock_name}</span></span>
+                </div>`
+            ).join("");
+            dropdown.classList.remove("hidden");
+        }
+
+        searchInput.addEventListener("input", () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => renderDropdown(searchInput.value), 150);
+        });
+
+        searchInput.addEventListener("focus", () => {
+            if (searchInput.value) renderDropdown(searchInput.value);
+        });
+
+        searchInput.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") { dropdown.classList.add("hidden"); searchInput.blur(); }
+            if (e.key === "Enter") {
+                const first = dropdown.querySelector("[data-stock-id]");
+                if (first) {
+                    const sid = first.dataset.stockId;
+                    dropdown.classList.add("hidden");
+                    searchInput.value = "";
+                    StockModal.openStockModal(sid);
+                }
+            }
+        });
+
+        dropdown.addEventListener("click", (e) => {
+            const item = e.target.closest("[data-stock-id]");
+            if (item) {
+                const sid = item.dataset.stockId;
+                dropdown.classList.add("hidden");
+                searchInput.value = "";
+                StockModal.openStockModal(sid);
+            }
+        });
+
+        // 點擊其他地方關閉下拉
+        document.addEventListener("click", (e) => {
+            if (!e.target.closest("#stock-search") && !e.target.closest("#search-dropdown")) {
+                dropdown.classList.add("hidden");
+            }
+        });
+    });
+    </script>
 </body>
 </html>

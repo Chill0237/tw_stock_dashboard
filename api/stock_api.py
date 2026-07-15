@@ -98,6 +98,20 @@ TDCC_LEVEL_ORDER = [
     "1001-2000張", "2001張以上",
 ]
 
+# TDCC 原始 CSV 的持股分級為數值代碼 (1-17)，其中 1-10 對應上述中文層級名稱
+_TDCC_NUMERIC_LEVEL_MAP = {
+    "1": "1-10張",
+    "2": "11-50張",
+    "3": "51-100張",
+    "4": "101-200張",
+    "5": "201-400張",
+    "6": "401-600張",
+    "7": "601-800張",
+    "8": "801-1000張",
+    "9": "1001-2000張",
+    "10": "2001張以上",
+}
+
 # ==========================================
 # 路徑解析
 # ==========================================
@@ -212,13 +226,21 @@ def _tdcc_to_records(df: pd.DataFrame) -> list[dict]:
 
     for date_str, group in grouped:
         levels = []
-        # 建立 level → ratio 對照
+        # 建立 level → ratio 對照（將原始 CSV 的數值代碼轉為中文層級名稱）
         level_map = {}
         for _, row in group.iterrows():
-            level = str(row.get("持股分級", "")).strip()
+            raw_level = str(row.get("持股分級", "")).strip()
             ratio = _safe_float(row.get("占集保庫存數比例%"))
-            if level and ratio is not None:
-                level_map[level] = ratio
+            if not raw_level or ratio is None:
+                continue
+            # 嘗試以 _TDCC_NUMERIC_LEVEL_MAP 將數值代碼轉為中文名稱（如 "1" → "1-10張"）
+            mapped = _TDCC_NUMERIC_LEVEL_MAP.get(raw_level)
+            if mapped:
+                level = mapped
+            else:
+                # 若不在對照表（例如 11-17：合計/小計等），直接跳過
+                continue
+            level_map[level] = ratio
 
         # 按 TDCC_LEVEL_ORDER 順序輸出
         for level in TDCC_LEVEL_ORDER:

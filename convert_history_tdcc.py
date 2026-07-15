@@ -100,6 +100,10 @@ def _standardize_tdcc_columns(df: pd.DataFrame) -> pd.DataFrame:
     # 日期欄位統一為 YYYYMMDD 字串格式（去除隱藏空白）
     df["日期"] = df["日期"].astype(str).str.strip()
 
+    # 證券代號去除首尾空白（TDCC 原始 CSV 的證券代號帶有尾端空白）
+    if "證券代號" in df.columns:
+        df["證券代號"] = df["證券代號"].str.strip()
+
     return df
 
 
