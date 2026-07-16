@@ -65,6 +65,7 @@ from quant_system_v2.utils.filters import (
     SecurityCategory,
     filter_by_type,
 )
+from quant_system_v2.utils.industry import INDUSTRY_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -542,6 +543,7 @@ def generate_all() -> int:
         stock_data = {
             "stock_id": stock_id,
             "stock_name": stock_name,
+            "industry": INDUSTRY_MAP.get(stock_id, ""),
             "updated_at": now_str,
             "price": price_records,
             "margin": margin_records,
@@ -845,6 +847,7 @@ def update_daily(target_date: str) -> int:
             existing = {
                 "stock_id": stock_id,
                 "stock_name": "",
+                "industry": INDUSTRY_MAP.get(stock_id, ""),
                 "updated_at": now_str,
                 "price": [],
                 "margin": [],
@@ -889,6 +892,8 @@ def update_daily(target_date: str) -> int:
             TDCC_MAX_RECORDS,
         )
 
+        # 確保 industry 欄位存在（向後相容舊 JSON）
+        existing["industry"] = existing.get("industry") or INDUSTRY_MAP.get(stock_id, "")
         existing["updated_at"] = now_str
 
         # 寫入

@@ -175,7 +175,9 @@ window.StockModal = (() => {
   function renderHeader(data) {
     const arr = data.price || [];
     const name = data.stock_name || '';
-    if (!arr.length) { els.headerInfo.innerHTML = `<span class="text-lg font-bold text-slate-100">${currentStockId}</span><span class="text-sm text-slate-400 ml-2">${name}</span><span class="text-slate-600 text-xs ml-4">暫無價量資料</span>`; return; }
+    const industry = data.industry || '';
+    const industryBadge = industry ? `<span class="text-2xs text-slate-200 ml-2">${industry}</span>` : '';
+    if (!arr.length) { els.headerInfo.innerHTML = `<span class="text-lg font-bold text-slate-100">${currentStockId}</span><span class="text-sm text-slate-400 ml-2">${name}${industryBadge}</span><span class="text-slate-600 text-xs ml-4">暫無價量資料</span>`; return; }
     const last = arr[arr.length - 1], prev = arr.length >= 2 ? arr[arr.length - 2] : null;
     const close = last.close;
     let ch = null, chPct = null;
@@ -183,7 +185,7 @@ window.StockModal = (() => {
     const cc = ch > 0 ? 'text-rose-500' : ch < 0 ? 'text-emerald-500' : 'text-slate-400';
     const ar = ch > 0 ? '▲' : ch < 0 ? '▼' : '—';
     const disp = close != null ? close.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--';
-    els.headerInfo.innerHTML = `<span class="text-lg font-bold text-slate-100">${currentStockId}</span><span class="text-sm text-slate-400 ml-2">${name}</span><span class="text-lg font-mono font-bold text-slate-100 ml-4">${disp}</span>${ch != null ? `<span class="text-sm font-mono font-semibold ${cc} ml-2">${ar} ${ch >= 0 ? '+' : ''}${ch.toFixed(2)} (${chPct >= 0 ? '+' : ''}${chPct.toFixed(2)}%)</span>` : ''}`;
+    els.headerInfo.innerHTML = `<span class="text-lg font-bold text-slate-100">${currentStockId}</span><span class="text-sm text-slate-400 ml-2">${name}${industryBadge}</span><span class="text-lg font-mono font-bold text-slate-100 ml-4">${disp}</span>${ch != null ? `<span class="text-sm font-mono font-semibold ${cc} ml-2">${ar} ${ch >= 0 ? '+' : ''}${ch.toFixed(2)} (${chPct >= 0 ? '+' : ''}${chPct.toFixed(2)}%)</span>` : ''}`;
     els.btnCmoney.classList.remove('hidden');
     els.btnGoogle.classList.remove('hidden');
   }
