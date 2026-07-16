@@ -5,7 +5,7 @@
   - price:  490 筆（由舊到新，ascending）
   - margin:  30 筆
   - chip:    30 筆
-  - tdcc:     6 筆
+  - tdcc:     5 筆
 
 前端 K 線圖慣例：資料由舊到新（ascending by date）。
 
@@ -40,10 +40,12 @@ JSON 儲存位置：
   ],
 
   "tdcc": [
-    { "date": "20260710",
+    { "date": "20260709",
       "levels": [
-        { "level": "1-10張", "ratio": 12.5 },
-        { "level": "1000張以上", "ratio": 53.0 }
+        { "code": 15, "level": "超過1000張", "count": 1482, "ratio": 85.11 },
+        { "code": 14, "level": "800-1000張", "count": 2031, "ratio": 0.35 },
+        ...
+        { "code": 1,  "level": "不足1張",     "count": 2344648, "ratio": 1.04 }
       ]
     }
   ]
@@ -76,7 +78,7 @@ logger = logging.getLogger(__name__)
 PRICE_MAX_RECORDS = 490      # 價量保留筆數
 MARGIN_MAX_RECORDS = 30      # 融資券保留筆數
 CHIP_MAX_RECORDS = 30        # 法人籌碼保留筆數
-TDCC_MAX_RECORDS = 6         # 集保保留期數
+TDCC_MAX_RECORDS = 5         # 集保保留期數
 
 MA_WINDOWS = [5, 10, 20, 60, 120, 240]
 MA_COLUMNS = {w: f"ma{w}" for w in MA_WINDOWS}
@@ -89,28 +91,32 @@ _EXCLUDED_NON_EQUITY = [
     SecurityCategory.ETN,
 ]
 
-# TDCC 大戶門檻（>= 1000 張為大戶）
-TDCC_LARGE_THRESHOLD = "1000張以上"
-
-# 持股分級層級（用於前端金字塔圖，由低持股到高持股）
+# 持股分級層級（用於前端金字塔圖，由低持股到高持股，共 15 級）
+# code 16 官方留空、code 17 為總和，均不輸出
 TDCC_LEVEL_ORDER = [
-    "1-10張", "11-50張", "51-100張", "101-200張",
-    "201-400張", "401-600張", "601-800張", "801-1000張",
-    "1001-2000張", "2001張以上",
+    "不足1張", "1-5張", "5-10張", "10-15張",
+    "15-20張", "20-30張", "30-40張", "40-50張",
+    "50-100張", "100-200張", "200-400張",
+    "400-600張", "600-800張", "800-1000張", "超過1000張",
 ]
 
-# TDCC 原始 CSV 的持股分級為數值代碼 (1-17)，其中 1-10 對應上述中文層級名稱
+# TDCC 原始 CSV 的持股分級為數值代碼 (1-17)，其中 1-15 對應官方級距名稱，16 留空、17 為合計
 _TDCC_NUMERIC_LEVEL_MAP = {
-    "1": "1-10張",
-    "2": "11-50張",
-    "3": "51-100張",
-    "4": "101-200張",
-    "5": "201-400張",
-    "6": "401-600張",
-    "7": "601-800張",
-    "8": "801-1000張",
-    "9": "1001-2000張",
-    "10": "2001張以上",
+    "1": "不足1張",
+    "2": "1-5張",
+    "3": "5-10張",
+    "4": "10-15張",
+    "5": "15-20張",
+    "6": "20-30張",
+    "7": "30-40張",
+    "8": "40-50張",
+    "9": "50-100張",
+    "10": "100-200張",
+    "11": "200-400張",
+    "12": "400-600張",
+    "13": "600-800張",
+    "14": "800-1000張",
+    "15": "超過1000張",
 }
 
 # ==========================================
@@ -216,7 +222,9 @@ def _tdcc_to_records(df: pd.DataFrame) -> list[dict]:
     """
     將集保 DataFrame 轉為 JSON records（由舊到新）。
 
-    每個 record 包含 date 與 levels（持股分級金字塔陣列）。
+    每個 record 包含 date 與 levels（持股分級金字塔陣列，15 級）。
+    每級包含 code (數值代碼 1-15)、level (中文名稱)、count (人數, int)、ratio (比例%)。
+    code 16 官方留空、code 17 為總和，均不輸出。
     """
     if df.empty or "日期" not in df.columns:
         return []
@@ -227,34 +235,34 @@ def _tdcc_to_records(df: pd.DataFrame) -> list[dict]:
 
     for date_str, group in grouped:
         levels = []
-        # 建立 level → ratio 對照（將原始 CSV 的數值代碼轉為中文層級名稱）
-        level_map = {}
+        # 建立 code → {level, count, ratio} 對照
+        level_data_map = {}
         for _, row in group.iterrows():
-            raw_level = str(row.get("持股分級", "")).strip()
-            ratio = _safe_float(row.get("占集保庫存數比例%"))
-            if not raw_level or ratio is None:
+            raw_code = str(row.get("持股分級", "")).strip()
+            if not raw_code:
                 continue
-            # 嘗試以 _TDCC_NUMERIC_LEVEL_MAP 將數值代碼轉為中文名稱（如 "1" → "1-10張"）
-            mapped = _TDCC_NUMERIC_LEVEL_MAP.get(raw_level)
-            if mapped:
-                level = mapped
-            else:
-                # 若不在對照表（例如 11-17：合計/小計等），直接跳過
+            mapped_level = _TDCC_NUMERIC_LEVEL_MAP.get(raw_code)
+            if not mapped_level:
+                # 不在對照表中（例如 code 17 合計），跳過
                 continue
-            level_map[level] = ratio
+            count_val = int(_safe_float(row.get("人數", 0)) or 0)
+            ratio_val = _safe_float(row.get("占集保庫存數比例%"))
+            code_int = int(raw_code)
+            level_data_map[code_int] = {
+                "level": mapped_level,
+                "count": count_val,
+                "ratio": ratio_val if ratio_val is not None else 0.0,
+            }
 
-        # 按 TDCC_LEVEL_ORDER 順序輸出
-        for level in TDCC_LEVEL_ORDER:
-            if level in level_map:
-                levels.append({
-                    "level": level,
-                    "ratio": level_map[level],
-                })
-            else:
-                levels.append({
-                    "level": level,
-                    "ratio": 0.0,
-                })
+        # 按 code 由小到大輸出 (1→15)，前端渲染時反轉 (大戶在上)
+        for code in sorted(level_data_map.keys()):
+            data = level_data_map[code]
+            levels.append({
+                "code": code,
+                "level": data["level"],
+                "count": data["count"],
+                "ratio": data["ratio"],
+            })
 
         records.append({
             "date": str(date_str).replace("-", ""),
