@@ -59,6 +59,7 @@ import os
 from datetime import datetime
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 
 from quant_system_v2.config.settings import DATA_DIR
@@ -153,9 +154,9 @@ def _calc_mas(series: pd.Series, window: int) -> pd.Series:
 
 def _compute_price_with_mas(price_df: pd.DataFrame) -> pd.DataFrame:
     """
-    對 price DataFrame（已排序 ascending by date）計算各期 MA。
+    對 price DataFrame（已排序 ascending by date）計算各期 MA 與布林通道。
     輸入須包含欄位：date, close_price
-    回傳附加 ma5~ma240 的 DataFrame（由舊到新）。
+    回傳附加 ma5~ma240、bband_upper、bband_lower 的 DataFrame（由舊到新）。
     """
     df = price_df.copy().sort_values("date")
     close = df["close_price"].astype(float)
@@ -163,6 +164,12 @@ def _compute_price_with_mas(price_df: pd.DataFrame) -> pd.DataFrame:
     for w in MA_WINDOWS:
         col = MA_COLUMNS[w]
         df[col] = _calc_mas(close, w)
+
+    # 布林通道（20MA ± 2σ）
+    ma20 = df["ma20"]
+    std20 = close.rolling(window=20, min_periods=20).std()
+    df["bband_upper"] = round(ma20 + (2 * std20), 2)
+    df["bband_lower"] = round(ma20 - (2 * std20), 2)
 
     # MA 前段 NaN 保留給前端自行判斷是否顯示
     return df
@@ -188,6 +195,8 @@ def _price_to_records(df: pd.DataFrame) -> list[dict]:
         for w in MA_WINDOWS:
             col = MA_COLUMNS[w]
             r[col] = _safe_float(row.get(col))
+        r["bband_upper"] = _safe_float(row.get("bband_upper"))
+        r["bband_lower"] = _safe_float(row.get("bband_lower"))
         records.append(r)
     return records
 
@@ -658,9 +667,11 @@ def _update_price_incremental(
       2. 若已存在相同 date，跳過
       3. 從既有 records 最後取出 239 筆 close +
          新資料的 close → 對最後一筆計算 ma5~ma240
-      4. 將新 record append 到陣列末端，截斷至 max_len 筆
+      4. 從既有 records 最後取出 19 筆 close +
+         新資料的 close → 計算 bband_upper/lower（np.std ddof=1，與 Pandas 一致）
+      5. 將新 record append 到陣列末端，截斷至 max_len 筆
 
-    關鍵：不重建既有 records 的 MA，MA 是歷史事實，不會因新資料而改變。
+    關鍵：不重建既有 records 的 MA/BB，歷史 MA/BB 是歷史事實，不會因新資料而改變。
     """
     if new_df.empty:
         return existing_records
@@ -688,6 +699,22 @@ def _update_price_incremental(
     # 計算新資料的 MA
     mas = _compute_ma_last_point(trailing_closes)
 
+    # 計算布林通道：取歷史最後 19 筆 close + 當日 close = 20 筆
+    bband20_closes = [
+        r["close"] for r in existing_records[-19:]
+        if r.get("close") is not None
+    ]
+    bband_upper = None
+    bband_lower = None
+    if new_close is not None:
+        bband20_closes.append(new_close)
+        if len(bband20_closes) >= 20:
+            arr = np.array(bband20_closes[-20:], dtype=float)
+            ma20_val = float(np.mean(arr))
+            std20_val = float(np.std(arr, ddof=1))
+            bband_upper = round(ma20_val + (2 * std20_val), 2)
+            bband_lower = round(ma20_val - (2 * std20_val), 2)
+
     # 建立新 record
     new_record = {
         "date": new_date,
@@ -696,6 +723,8 @@ def _update_price_incremental(
         "low": _safe_float(latest_row.get("low_price")),
         "close": new_close,
         "volume": _safe_float(latest_row.get("volume")),
+        "bband_upper": bband_upper,
+        "bband_lower": bband_lower,
     }
     for w in MA_WINDOWS:
         new_record[MA_COLUMNS[w]] = mas.get(MA_COLUMNS[w])

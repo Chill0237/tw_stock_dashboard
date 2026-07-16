@@ -17,12 +17,17 @@ window.StockModal = (() => {
   let lwcCandleSeries = null;
   let lwcVolumeSeries = null;
   let lwcMASeries = {};
+  let lwcBBUpper = null;
+  let lwcBBLower = null;
   let chartJsInstance = null;
   let resizeObserver = null;
   let els = {};
+  let currentMode = 'ma';
+  let lastPriceBar = null;
 
   const MA_WINDOWS = [5, 10, 20, 60, 120, 240];
   const MA_COLORS = { ma5: '#f59e0b', ma10: '#3b82f6', ma20: '#8b5cf6', ma60: '#10b981', ma120: '#f97316', ma240: '#ef4444' };
+  const BB_COLOR = '#a78bfa';
   const C = { up: 'rgba(239,68,68,0.5)', upBorder: '#ef4444', down: 'rgba(16,185,129,0.5)', downBorder: '#10b981', foreign: '#3b82f6', trust: '#10b981', prop: '#f59e0b' };
 
   function init() {
@@ -33,9 +38,16 @@ window.StockModal = (() => {
   }
 
   function buildModalDOM() {
-    const maHTML = MA_WINDOWS.map(w => {
-      const cls = w === 5 ? 'text-amber-500' : w === 10 ? 'text-blue-500' : w === 20 ? 'text-violet-500' : w === 60 ? 'text-emerald-500' : w === 120 ? 'text-orange-500' : 'text-red-500';
-      return `<label class="inline-flex items-center gap-1 text-2xs cursor-pointer select-none ${cls}"><input type="checkbox" class="ma-toggle rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-0 focus:ring-offset-0" data-ma="ma${w}" ${w <= 20 ? 'checked' : ''}>MA${w}</label>`;
+    // MA capsule buttons (using data-active for state management)
+    const maCapsules = MA_WINDOWS.map(w => {
+      const key = 'ma' + w;
+      const color = MA_COLORS[key]; // e.g. '#f59e0b'
+      const active = w <= 20 ? 'true' : 'false';
+      // active: colored bg, white text; inactive: transparent, grey border
+      const activeBg = `background:${color};color:#000;border-color:${color}`;
+      const inactiveBg = `background:transparent;color:#64748b;border-color:#334155`;
+      const baseStyle = 'padding:2px 7px;font-size:10px;border-radius:9999px;border-width:1px;border-style:solid;cursor:pointer;transition:all 150ms ease;font-family:monospace;line-height:1.4;user-select:none;';
+      return `<button class="ma-capsule" data-ma="${key}" data-active="${active}" style="${baseStyle}${active === 'true' ? activeBg : inactiveBg}">MA${w}</button>`;
     }).join('');
     const html = `<div id="stock-modal-overlay" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 hidden" style="backdrop-filter:blur(2px);">
       <div id="stock-modal" class="relative w-[90vw] max-w-5xl h-[90vh] max-h-[900px] bg-black border border-slate-800 flex flex-col overflow-hidden shadow-2xl">
@@ -43,12 +55,24 @@ window.StockModal = (() => {
           <div id="modal-header-info" class="flex items-center gap-3 min-w-0"><span class="text-lg font-bold text-slate-100">載入中...</span></div>
           <div class="flex items-center gap-2 shrink-0">
             <button id="modal-btn-cmoney" title="股市同學會" class="hidden text-xs px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200">💬 同學會</button>
-            <button id="modal-btn-google" title="Google 搜尋" class="hidden text-xs px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200">🔍 Google</button>
+            <button id="modal-btn-google" title="Google 搜尋" class="hidden text-xs px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200">🔍 做什麼</button>
             <button id="modal-close-btn" class="ml-2 text-slate-500 hover:text-slate-200 text-xl leading-none">&times;</button>
           </div>
         </div>
-        <div class="shrink-0 px-3 pt-2 pb-0" style="height:45%;min-height:280px;"><div id="kline-container" class="w-full h-full"></div></div>
-        <div id="ma-toggles" class="shrink-0 flex flex-wrap items-center gap-2 px-3 py-1.5 border-b border-slate-800"><span class="text-2xs text-slate-600 mr-1">均線</span>${maHTML}</div>
+        <div class="shrink-0 px-3 pt-2 pb-0" style="height:45%;min-height:280px;">
+          <div id="kline-container" class="w-full h-full"></div>
+        </div>
+        <div class="shrink-0 flex items-center px-3 py-1 gap-2 border-b border-slate-800" style="min-height:38px;">
+          <div id="hover-legend" class="flex-1 min-w-0 overflow-hidden flex flex-col justify-center" style="font-size:11px;font-family:monospace;color:#94a3b8;line-height:1.25;">
+            <div id="hover-legend-line1" style="white-space:nowrap;"></div>
+            <div id="hover-legend-line2" style="white-space:nowrap;"></div>
+          </div>
+          <span id="ma-checkboxes" class="inline-flex flex-wrap items-center gap-1.5 shrink-0">${maCapsules}</span>
+          <div class="flex rounded bg-slate-800 p-0.5 shrink-0">
+            <button id="mode-btn-ma" class="px-2 py-0.5 rounded bg-slate-700 text-slate-200" style="font-size:11px;">MA</button>
+            <button id="mode-btn-bb" class="px-2 py-0.5 rounded text-slate-500" style="font-size:11px;">BB</button>
+          </div>
+        </div>
         <div class="shrink-0 flex border-b border-slate-800">
           <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-emerald-500 text-emerald-500" data-subtab="institutional">法人買賣超</button>
           <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300" data-subtab="margin">融資融券餘額</button>
@@ -68,18 +92,129 @@ window.StockModal = (() => {
     els.closeBtn = document.getElementById('modal-close-btn');
     els.klineContainer = document.getElementById('kline-container');
     els.subchartContainer = document.getElementById('subchart-container');
-    els.maToggles = document.querySelectorAll('.ma-toggle');
+    els.maToggles = document.querySelectorAll('.ma-capsule');
     els.subTabBtns = document.querySelectorAll('.sub-tab-btn');
     els.btnCmoney = document.getElementById('modal-btn-cmoney');
     els.btnGoogle = document.getElementById('modal-btn-google');
+    els.btnModeMa = document.getElementById('mode-btn-ma');
+    els.btnModeBb = document.getElementById('mode-btn-bb');
+    els.maCheckboxes = document.getElementById('ma-checkboxes');
+    els.hoverLegend = document.getElementById('hover-legend');
+    els.hoverLegendLine1 = document.getElementById('hover-legend-line1');
+    els.hoverLegendLine2 = document.getElementById('hover-legend-line2');
+  }
+
+  /** Format a number for hover legend display */
+  function fmtNum(v) {
+    if (v == null || isNaN(v)) return '—';
+    if (Math.abs(v) >= 1000 || Math.abs(v) < 1) return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const dec = Math.abs(v) >= 10 ? 0 : 2;
+    return v.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  }
+
+  /** Render hover legend panel with given price bar and mode */
+  function updateHoverLegend(bar, mode) {
+    const el1 = els.hoverLegendLine1;
+    const el2 = els.hoverLegendLine2;
+    if (!el1 || !el2) return;
+    if (!bar) bar = lastPriceBar;
+    if (!bar) return;
+    const dateStr = bar.date || '';
+    const fmtDate = dateStr.length === 8 ? dateStr.slice(0, 4) + '-' + dateStr.slice(4, 6) + '-' + dateStr.slice(6, 8) : dateStr;
+    let line1 = `<span style="color:#64748b;">${fmtDate}</span> `;
+    line1 += `<span style="color:#64748b;">開: </span><span style="color:#e2e8f0;">${fmtNum(bar.open)}</span> `;
+    line1 += `<span style="color:#64748b;">高: </span><span style="color:#e2e8f0;">${fmtNum(bar.high)}</span> `;
+    line1 += `<span style="color:#64748b;">低: </span><span style="color:#e2e8f0;">${fmtNum(bar.low)}</span> `;
+    line1 += `<span style="color:#64748b;">收: </span><span style="color:#e2e8f0;">${fmtNum(bar.close)}</span> `;
+    line1 += `<span style="color:#64748b;">量: </span><span style="color:#e2e8f0;">${bar.volume != null ? Math.round(bar.volume / 1000).toLocaleString() : '—'}</span>`;
+    let line2 = '';
+    if (mode === 'ma') {
+      els.maToggles.forEach(btn => {
+        if (btn.dataset.active !== 'true') return;
+        const key = btn.dataset.ma;
+        const v = bar[key];
+        if (v != null) {
+          const col = MA_COLORS[key] || '#94a3b8';
+          line2 += ` <span style="color:${col};">${key.toUpperCase()}: </span><span style="color:#e2e8f0;">${fmtNum(v)}</span>`;
+        }
+      });
+    } else {
+      if (bar.bband_upper != null) {
+        line2 += ` <span style="color:#a78bfa;">上: </span><span style="color:#e2e8f0;">${fmtNum(bar.bband_upper)}</span>`;
+      }
+      if (bar.ma20 != null) {
+        line2 += ` <span style="color:#8b5cf6;">中: </span><span style="color:#e2e8f0;">${fmtNum(bar.ma20)}</span>`;
+      }
+      if (bar.bband_lower != null) {
+        line2 += ` <span style="color:#a78bfa;">下: </span><span style="color:#e2e8f0;">${fmtNum(bar.bband_lower)}</span>`;
+      }
+    }
+    el1.innerHTML = line1;
+    el2.innerHTML = line2 || '&nbsp;';
+  }
+
+  function updateModeUI() {
+    if (!els.btnModeMa || !els.btnModeBb) return;
+    const isMA = currentMode === 'ma';
+    els.btnModeMa.className = isMA ? 'px-2 py-0.5 rounded bg-slate-700 text-slate-200' : 'px-2 py-0.5 rounded text-slate-500';
+    els.btnModeBb.className = isMA ? 'px-2 py-0.5 rounded text-slate-500' : 'px-2 py-0.5 rounded bg-slate-700 text-slate-200';
+    // 隱藏/顯示 MA 膠囊按鈕容器
+    if (els.maCheckboxes) {
+      els.maCheckboxes.style.display = isMA ? '' : 'none';
+    }
+    // BB lines
+    if (lwcBBUpper) lwcBBUpper.applyOptions({ visible: !isMA });
+    if (lwcBBLower) lwcBBLower.applyOptions({ visible: !isMA });
+    // MA lines: in BB mode hide all except ma20 (as bband center line); in MA mode restore capsule active state
+    for (const w of MA_WINDOWS) {
+      const key = 'ma' + w;
+      const s = lwcMASeries[key];
+      if (!s) continue;
+      if (isMA) {
+        // restore capsule active state
+        let visible = false;
+        els.maToggles.forEach(cb => { if (cb.dataset.ma === key && cb.dataset.active === 'true') visible = true; });
+        s.applyOptions({ visible });
+      } else {
+        // BB mode: only ma20 visible as center line
+        s.applyOptions({ visible: w === 20 });
+      }
+    }
+    // 重新繪製 hover legend（依據切換後模式及最後一筆或當前 crosshair 位置）
+    if (lwcChart && els.hoverLegend) {
+      updateHoverLegend(null, currentMode); // trigger fallback to last bar — see renderCandlestick crosshair handler
+    }
   }
 
   function bindEvents() {
     els.closeBtn.addEventListener('click', closeModal);
     els.overlay.addEventListener('click', e => { if (e.target === els.overlay) closeModal(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-    els.maToggles.forEach(cb => {
-      cb.addEventListener('change', e => { const s = lwcMASeries[e.target.dataset.ma]; if (s) s.applyOptions({ visible: e.target.checked }); });
+    if (els.btnModeMa) els.btnModeMa.addEventListener('click', () => { currentMode = 'ma'; updateModeUI(); });
+    if (els.btnModeBb) els.btnModeBb.addEventListener('click', () => { currentMode = 'bb'; updateModeUI(); });
+    els.maToggles.forEach(btn => {
+      btn.addEventListener('click', e => {
+        const b = e.currentTarget;
+        const key = b.dataset.ma;
+        const isActive = b.dataset.active === 'true';
+        const newActive = isActive ? 'false' : 'true';
+        b.dataset.active = newActive;
+        // update capsule style
+        const color = MA_COLORS[key] || '#64748b';
+        const activeBg = `background:${color};color:#000;border-color:${color}`;
+        const inactiveBg = `background:transparent;color:#64748b;border-color:#334155`;
+        const base = 'padding:2px 7px;font-size:10px;border-radius:9999px;border-width:1px;border-style:solid;cursor:pointer;transition:all 150ms ease;font-family:monospace;line-height:1.4;user-select:none;';
+        b.style.cssText = base + (newActive === 'true' ? activeBg : inactiveBg);
+        // toggle line visibility (only effective in MA mode)
+        const s = lwcMASeries[key];
+        if (s) {
+          s.applyOptions({ visible: currentMode === 'ma' ? (newActive === 'true') : (key === 'ma20') });
+        }
+        // refresh hover legend
+        if (lwcChart && els.hoverLegend) {
+          updateHoverLegend(null, currentMode);
+        }
+      });
     });
     els.subTabBtns.forEach(btn => {
       btn.addEventListener('click', () => {
@@ -139,8 +274,9 @@ window.StockModal = (() => {
 
   function cleanupCharts() {
     if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null; }
-    if (lwcChart) { lwcChart.remove(); lwcChart = null; lwcCandleSeries = null; lwcVolumeSeries = null; lwcMASeries = {}; }
+    if (lwcChart) { lwcChart.remove(); lwcChart = null; lwcCandleSeries = null; lwcVolumeSeries = null; lwcMASeries = {}; lwcBBUpper = null; lwcBBLower = null; }
     if (chartJsInstance) { chartJsInstance.destroy(); chartJsInstance = null; }
+    currentMode = 'ma';
   }
 
   function renderHeader(data) {
@@ -169,16 +305,43 @@ window.StockModal = (() => {
       grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: '#475569', width: 1, labelBackgroundColor: '#334155' }, horzLine: { color: '#475569', width: 1, labelBackgroundColor: '#334155' } },
       rightPriceScale: { borderColor: '#334155', scaleMargins: { top: 0.05, bottom: 0.25 } },
-      timeScale: { borderColor: '#334155', timeVisible: true, secondsVisible: false },
+      localization: {
+        locale: 'zh-TW',
+        timeFormatter: function(ts) {
+          if (ts.year !== undefined) {
+            return `${ts.year}-${String(ts.month).padStart(2,'0')}-${String(ts.day).padStart(2,'0')}`;
+          }
+          if (ts instanceof Date) {
+            return ts.getFullYear() + '-' + String(ts.getMonth()+1).padStart(2,'0') + '-' + String(ts.getDate()).padStart(2,'0');
+          }
+          return String(ts);
+        },
+      },
+      timeScale: {
+        borderColor: '#334155',
+        timeVisible: true,
+        secondsVisible: false,
+        tickMarkFormatter: function(ts, tickMarkType, locale) {
+          if (ts.year !== undefined) {
+            switch (tickMarkType) {
+              case 0 /* Year */:       return ts.year + '年';
+              case 1 /* Month */:      return String(ts.month).padStart(2,'0') + '月';
+              case 2 /* DayOfMonth */:
+              default:                 return String(ts.month).padStart(2,'0') + '/' + String(ts.day).padStart(2,'0');
+            }
+          }
+          return String(ts);
+        },
+      },
       handleScroll: { vertTouchDrag: false },
     });
     resizeObserver = new ResizeObserver(entries => { for (const e of entries) { const { width, height } = e.contentRect; if (lwcChart && width > 0 && height > 0) lwcChart.applyOptions({ width, height }); } });
     resizeObserver.observe(els.klineContainer);
     lwcCandleSeries = lwcChart.addCandlestickSeries({ upColor: C.upBorder, downColor: C.downBorder, borderUpColor: C.upBorder, borderDownColor: C.downBorder, wickUpColor: C.upBorder, wickDownColor: C.downBorder });
     lwcCandleSeries.setData(priceArr.map(p => ({ time: p.date, open: p.open, high: p.high, low: p.low, close: p.close })));
-    lwcVolumeSeries = lwcChart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'volume' });
+    lwcVolumeSeries = lwcChart.addHistogramSeries({ priceScaleId: 'volume' });
     lwcChart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.85, bottom: 0.02 } });
-    lwcVolumeSeries.setData(priceArr.map(p => ({ time: p.date, value: p.volume || 0, color: p.close >= p.open ? C.up : C.down })));
+    lwcVolumeSeries.setData(priceArr.map(p => ({ time: p.date, value: p.volume != null ? p.volume / 1000 : 0, color: p.close >= p.open ? C.up : C.down })));
     MA_WINDOWS.forEach(w => {
       const key = 'ma' + w;
       const s = lwcChart.addLineSeries({ color: MA_COLORS[key], lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, visible: w <= 20 });
@@ -192,7 +355,45 @@ window.StockModal = (() => {
       const to = priceArr[len - 1].date;
       lwcChart.timeScale().setVisibleRange({ from, to });
     }
-    els.maToggles.forEach(cb => { const s = lwcMASeries[cb.dataset.ma]; if (s) s.applyOptions({ visible: cb.checked }); });
+    els.maToggles.forEach(btn => {
+      const s = lwcMASeries[btn.dataset.ma];
+      if (s) {
+        const isMA = currentMode === 'ma';
+        s.applyOptions({ visible: isMA ? (btn.dataset.active === 'true') : (btn.dataset.ma === 'ma20') });
+      }
+    });
+    // BBands lines
+    lwcBBUpper = lwcChart.addLineSeries({
+    color: BB_COLOR, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.LargeDashed,
+    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+    visible: currentMode === 'bb',
+    });
+    const bbUpperData = []; priceArr.forEach(p => { if (p.bband_upper != null) bbUpperData.push({ time: p.date, value: p.bband_upper }); });
+    lwcBBUpper.setData(bbUpperData);
+    lwcBBLower = lwcChart.addLineSeries({
+    color: BB_COLOR, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.LargeDashed,
+    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+    visible: currentMode === 'bb',
+    });
+    const bbLowerData = []; priceArr.forEach(p => { if (p.bband_lower != null) bbLowerData.push({ time: p.date, value: p.bband_lower }); });
+    lwcBBLower.setData(bbLowerData);
+    // Hover legend: subscribe crosshair move
+    lastPriceBar = priceArr[priceArr.length - 1];
+    if (els.hoverLegend && lastPriceBar) {
+      updateHoverLegend(lastPriceBar, currentMode);
+    }
+    lwcChart.subscribeCrosshairMove(param => {
+      if (!param || !param.time || !priceArr.length) {
+        updateHoverLegend(lastPriceBar, currentMode);
+        return;
+      }
+      const idx = priceArr.findIndex(p => p.date === param.time);
+      if (idx >= 0) {
+        updateHoverLegend(priceArr[idx], currentMode);
+      } else {
+        updateHoverLegend(lastPriceBar, currentMode);
+      }
+    });
   }
 
   function renderSubTab(tab) {
