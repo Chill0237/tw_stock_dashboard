@@ -1,7 +1,8 @@
 {
   "stock_id": "3714",
   "stock_name": "富采",
-  "updated_at": "2026-07-16T17:57:08",
+  "industry": "上市-光電業",
+  "updated_at": "2026-07-16T20:34:18",
   "price": [
     {
       "date": "2024-07-09",
@@ -6823,25 +6824,20 @@
     },
     {
       "date": "2026-07-16",
-      "open": 9.97,
-      "high": 9.97,
-      "low": 9.69,
-      "close": 9.89,
-      "volume": 19942.0,
-      "ma5": 50.86,
-      "ma10": 56.6,
-      "ma20": 61.6,
-      "ma60": 67.68,
-      "ma120": 55.51,
-      "ma240": 45.55
+      "open": 59.5,
+      "high": 59.7,
+      "low": 57.5,
+      "close": 57.7,
+      "volume": 5507925.0,
+      "ma5": 60.42,
+      "ma10": 61.38,
+      "ma20": 63.99,
+      "ma60": 68.47,
+      "ma120": 55.9,
+      "ma240": 45.75
     }
   ],
   "margin": [
-    {
-      "date": "2026-06-01",
-      "fin_balance": 38158.0,
-      "mar_balance": 379.0
-    },
     {
       "date": "2026-06-02",
       "fin_balance": 38082.0,
@@ -6986,6 +6982,11 @@
       "date": "2026-07-14",
       "fin_balance": 29692.0,
       "mar_balance": 83.0
+    },
+    {
+      "date": "2026-07-15",
+      "fin_balance": 29798.0,
+      "mar_balance": 113.0
     }
   ],
   "institutional": [
@@ -7202,92 +7203,97 @@
   ],
   "tdcc": [
     {
-      "date": "20260605",
-      "levels": [
-        {
-          "level": "1-10張",
-          "ratio": 1.47
-        },
-        {
-          "level": "11-50張",
-          "ratio": 16.89
-        },
-        {
-          "level": "51-100張",
-          "ratio": 8.09
-        },
-        {
-          "level": "101-200張",
-          "ratio": 3.81
-        },
-        {
-          "level": "201-400張",
-          "ratio": 3.52
-        },
-        {
-          "level": "401-600張",
-          "ratio": 4.04
-        },
-        {
-          "level": "601-800張",
-          "ratio": 2.68
-        },
-        {
-          "level": "801-1000張",
-          "ratio": 2.3
-        },
-        {
-          "level": "1001-2000張",
-          "ratio": 6.36
-        },
-        {
-          "level": "2001張以上",
-          "ratio": 5.43
-        }
-      ]
-    },
-    {
       "date": "20260612",
       "levels": [
         {
-          "level": "1-10張",
+          "code": 1,
+          "level": "不足1張",
+          "count": 89464,
           "ratio": 1.46
         },
         {
-          "level": "11-50張",
+          "code": 2,
+          "level": "1-5張",
+          "count": 63151,
           "ratio": 16.88
         },
         {
-          "level": "51-100張",
+          "code": 3,
+          "level": "5-10張",
+          "count": 7777,
           "ratio": 8.19
         },
         {
-          "level": "101-200張",
+          "code": 4,
+          "level": "10-15張",
+          "count": 2222,
           "ratio": 3.86
         },
         {
-          "level": "201-400張",
+          "code": 5,
+          "level": "15-20張",
+          "count": 1409,
           "ratio": 3.52
         },
         {
-          "level": "401-600張",
+          "code": 6,
+          "level": "20-30張",
+          "count": 1183,
           "ratio": 4.08
         },
         {
-          "level": "601-800張",
+          "code": 7,
+          "level": "30-40張",
+          "count": 556,
           "ratio": 2.69
         },
         {
-          "level": "801-1000張",
+          "code": 8,
+          "level": "40-50張",
+          "count": 369,
           "ratio": 2.32
         },
         {
-          "level": "1001-2000張",
+          "code": 9,
+          "level": "50-100張",
+          "count": 659,
           "ratio": 6.35
         },
         {
-          "level": "2001張以上",
+          "code": 10,
+          "level": "100-200張",
+          "count": 289,
           "ratio": 5.43
+        },
+        {
+          "code": 11,
+          "level": "200-400張",
+          "count": 120,
+          "ratio": 4.56
+        },
+        {
+          "code": 12,
+          "level": "400-600張",
+          "count": 37,
+          "ratio": 2.34
+        },
+        {
+          "code": 13,
+          "level": "600-800張",
+          "count": 18,
+          "ratio": 1.72
+        },
+        {
+          "code": 14,
+          "level": "800-1000張",
+          "count": 14,
+          "ratio": 1.71
+        },
+        {
+          "code": 15,
+          "level": "超過1000張",
+          "count": 50,
+          "ratio": 34.81
         }
       ]
     },
@@ -7295,44 +7301,94 @@
       "date": "20260618",
       "levels": [
         {
-          "level": "1-10張",
+          "code": 1,
+          "level": "不足1張",
+          "count": 89118,
           "ratio": 1.46
         },
         {
-          "level": "11-50張",
+          "code": 2,
+          "level": "1-5張",
+          "count": 62712,
           "ratio": 16.76
         },
         {
-          "level": "51-100張",
+          "code": 3,
+          "level": "5-10張",
+          "count": 7703,
           "ratio": 8.11
         },
         {
-          "level": "101-200張",
+          "code": 4,
+          "level": "10-15張",
+          "count": 2201,
           "ratio": 3.83
         },
         {
-          "level": "201-400張",
+          "code": 5,
+          "level": "15-20張",
+          "count": 1414,
           "ratio": 3.53
         },
         {
-          "level": "401-600張",
+          "code": 6,
+          "level": "20-30張",
+          "count": 1174,
           "ratio": 4.06
         },
         {
-          "level": "601-800張",
+          "code": 7,
+          "level": "30-40張",
+          "count": 549,
           "ratio": 2.65
         },
         {
-          "level": "801-1000張",
+          "code": 8,
+          "level": "40-50張",
+          "count": 365,
           "ratio": 2.29
         },
         {
-          "level": "1001-2000張",
+          "code": 9,
+          "level": "50-100張",
+          "count": 665,
           "ratio": 6.4
         },
         {
-          "level": "2001張以上",
+          "code": 10,
+          "level": "100-200張",
+          "count": 287,
           "ratio": 5.43
+        },
+        {
+          "code": 11,
+          "level": "200-400張",
+          "count": 122,
+          "ratio": 4.68
+        },
+        {
+          "code": 12,
+          "level": "400-600張",
+          "count": 39,
+          "ratio": 2.5
+        },
+        {
+          "code": 13,
+          "level": "600-800張",
+          "count": 14,
+          "ratio": 1.34
+        },
+        {
+          "code": 14,
+          "level": "800-1000張",
+          "count": 13,
+          "ratio": 1.6
+        },
+        {
+          "code": 15,
+          "level": "超過1000張",
+          "count": 50,
+          "ratio": 35.29
         }
       ]
     },
@@ -7340,44 +7396,94 @@
       "date": "20260626",
       "levels": [
         {
-          "level": "1-10張",
+          "code": 1,
+          "level": "不足1張",
+          "count": 88797,
           "ratio": 1.45
         },
         {
-          "level": "11-50張",
+          "code": 2,
+          "level": "1-5張",
+          "count": 62170,
           "ratio": 16.55
         },
         {
-          "level": "51-100張",
+          "code": 3,
+          "level": "5-10張",
+          "count": 7647,
           "ratio": 8.06
         },
         {
-          "level": "101-200張",
+          "code": 4,
+          "level": "10-15張",
+          "count": 2158,
           "ratio": 3.76
         },
         {
-          "level": "201-400張",
+          "code": 5,
+          "level": "15-20張",
+          "count": 1372,
           "ratio": 3.43
         },
         {
-          "level": "401-600張",
+          "code": 6,
+          "level": "20-30張",
+          "count": 1172,
           "ratio": 4.04
         },
         {
-          "level": "601-800張",
+          "code": 7,
+          "level": "30-40張",
+          "count": 553,
           "ratio": 2.68
         },
         {
-          "level": "801-1000張",
+          "code": 8,
+          "level": "40-50張",
+          "count": 363,
           "ratio": 2.28
         },
         {
-          "level": "1001-2000張",
+          "code": 9,
+          "level": "50-100張",
+          "count": 648,
           "ratio": 6.25
         },
         {
-          "level": "2001張以上",
+          "code": 10,
+          "level": "100-200張",
+          "count": 299,
           "ratio": 5.67
+        },
+        {
+          "code": 11,
+          "level": "200-400張",
+          "count": 112,
+          "ratio": 4.31
+        },
+        {
+          "code": 12,
+          "level": "400-600張",
+          "count": 39,
+          "ratio": 2.51
+        },
+        {
+          "code": 13,
+          "level": "600-800張",
+          "count": 13,
+          "ratio": 1.25
+        },
+        {
+          "code": 14,
+          "level": "800-1000張",
+          "count": 11,
+          "ratio": 1.36
+        },
+        {
+          "code": 15,
+          "level": "超過1000張",
+          "count": 52,
+          "ratio": 36.35
         }
       ]
     },
@@ -7385,44 +7491,94 @@
       "date": "20260703",
       "levels": [
         {
-          "level": "1-10張",
+          "code": 1,
+          "level": "不足1張",
+          "count": 88357,
           "ratio": 1.44
         },
         {
-          "level": "11-50張",
+          "code": 2,
+          "level": "1-5張",
+          "count": 61593,
           "ratio": 16.52
         },
         {
-          "level": "51-100張",
+          "code": 3,
+          "level": "5-10張",
+          "count": 7647,
           "ratio": 8.04
         },
         {
-          "level": "101-200張",
+          "code": 4,
+          "level": "10-15張",
+          "count": 2183,
           "ratio": 3.8
         },
         {
-          "level": "201-400張",
+          "code": 5,
+          "level": "15-20張",
+          "count": 1415,
           "ratio": 3.53
         },
         {
-          "level": "401-600張",
+          "code": 6,
+          "level": "20-30張",
+          "count": 1178,
           "ratio": 4.05
         },
         {
-          "level": "601-800張",
+          "code": 7,
+          "level": "30-40張",
+          "count": 540,
           "ratio": 2.61
         },
         {
-          "level": "801-1000張",
+          "code": 8,
+          "level": "40-50張",
+          "count": 360,
           "ratio": 2.26
         },
         {
-          "level": "1001-2000張",
+          "code": 9,
+          "level": "50-100張",
+          "count": 670,
           "ratio": 6.45
         },
         {
-          "level": "2001張以上",
+          "code": 10,
+          "level": "100-200張",
+          "count": 306,
           "ratio": 5.83
+        },
+        {
+          "code": 11,
+          "level": "200-400張",
+          "count": 111,
+          "ratio": 4.33
+        },
+        {
+          "code": 12,
+          "level": "400-600張",
+          "count": 40,
+          "ratio": 2.55
+        },
+        {
+          "code": 13,
+          "level": "600-800張",
+          "count": 17,
+          "ratio": 1.62
+        },
+        {
+          "code": 14,
+          "level": "800-1000張",
+          "count": 11,
+          "ratio": 1.35
+        },
+        {
+          "code": 15,
+          "level": "超過1000張",
+          "count": 53,
+          "ratio": 35.54
         }
       ]
     },
@@ -7430,47 +7586,96 @@
       "date": "20260709",
       "levels": [
         {
-          "level": "1-10張",
+          "code": 1,
+          "level": "不足1張",
+          "count": 88115,
           "ratio": 1.44
         },
         {
-          "level": "11-50張",
+          "code": 2,
+          "level": "1-5張",
+          "count": 61391,
           "ratio": 16.5
         },
         {
-          "level": "51-100張",
+          "code": 3,
+          "level": "5-10張",
+          "count": 7604,
           "ratio": 8.0
         },
         {
-          "level": "101-200張",
+          "code": 4,
+          "level": "10-15張",
+          "count": 2189,
           "ratio": 3.81
         },
         {
-          "level": "201-400張",
+          "code": 5,
+          "level": "15-20張",
+          "count": 1419,
           "ratio": 3.54
         },
         {
-          "level": "401-600張",
+          "code": 6,
+          "level": "20-30張",
+          "count": 1177,
           "ratio": 4.06
         },
         {
-          "level": "601-800張",
+          "code": 7,
+          "level": "30-40張",
+          "count": 543,
           "ratio": 2.63
         },
         {
-          "level": "801-1000張",
+          "code": 8,
+          "level": "40-50張",
+          "count": 359,
           "ratio": 2.24
         },
         {
-          "level": "1001-2000張",
+          "code": 9,
+          "level": "50-100張",
+          "count": 670,
           "ratio": 6.47
         },
         {
-          "level": "2001張以上",
+          "code": 10,
+          "level": "100-200張",
+          "count": 307,
           "ratio": 5.84
+        },
+        {
+          "code": 11,
+          "level": "200-400張",
+          "count": 111,
+          "ratio": 4.31
+        },
+        {
+          "code": 12,
+          "level": "400-600張",
+          "count": 41,
+          "ratio": 2.62
+        },
+        {
+          "code": 13,
+          "level": "600-800張",
+          "count": 18,
+          "ratio": 1.7
+        },
+        {
+          "code": 14,
+          "level": "800-1000張",
+          "count": 12,
+          "ratio": 1.48
+        },
+        {
+          "code": 15,
+          "level": "超過1000張",
+          "count": 52,
+          "ratio": 35.28
         }
       ]
     }
-  ],
-  "industry": "上市-光電業"
+  ]
 }
