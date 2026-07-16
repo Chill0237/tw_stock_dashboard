@@ -227,6 +227,14 @@ window.StockModal = (() => {
       lwcMASeries[key] = s;
     });
 
+    // 預設顯示最後 60 根 K 線
+    const len = priceArr.length;
+    if (len > 0) {
+      const from = priceArr[Math.max(0, len - 60)].date;
+      const to = priceArr[len - 1].date;
+      lwcChart.timeScale().setVisibleRange({ from, to });
+    }
+
     els.maToggles.forEach(cb => { const s = lwcMASeries[cb.dataset.ma]; if (s) s.applyOptions({ visible: cb.checked }); });
   }
 
