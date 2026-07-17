@@ -299,6 +299,8 @@ window.StockModal = (() => {
 
   function renderCandlestick(priceArr) {
     if (!priceArr || !priceArr.length) { els.klineContainer.innerHTML = '<div class="w-full h-full flex items-center justify-center text-slate-700 text-xs">無價量資料</div>'; return; }
+    const validPrice = priceArr.filter(p => p.open != null && p.high != null && p.low != null && p.close != null);
+    if (!validPrice.length) { els.klineContainer.innerHTML = '<div class="w-full h-full flex items-center justify-center text-slate-700 text-xs">無有效價量資料</div>'; return; }
     els.klineContainer.innerHTML = '';
     lwcChart = LightweightCharts.createChart(els.klineContainer, {
       layout: { background: { type: 'solid', color: '#000000' }, textColor: '#94a3b8', fontSize: 10 },
@@ -338,21 +340,21 @@ window.StockModal = (() => {
     resizeObserver = new ResizeObserver(entries => { for (const e of entries) { const { width, height } = e.contentRect; if (lwcChart && width > 0 && height > 0) lwcChart.applyOptions({ width, height }); } });
     resizeObserver.observe(els.klineContainer);
     lwcCandleSeries = lwcChart.addCandlestickSeries({ upColor: C.upBorder, downColor: C.downBorder, borderUpColor: C.upBorder, borderDownColor: C.downBorder, wickUpColor: C.upBorder, wickDownColor: C.downBorder });
-    lwcCandleSeries.setData(priceArr.map(p => ({ time: p.date, open: p.open, high: p.high, low: p.low, close: p.close })));
+    lwcCandleSeries.setData(validPrice.map(p => ({ time: p.date, open: p.open, high: p.high, low: p.low, close: p.close })));
     lwcVolumeSeries = lwcChart.addHistogramSeries({ priceScaleId: 'volume' });
     lwcChart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.85, bottom: 0.02 } });
-    lwcVolumeSeries.setData(priceArr.map(p => ({ time: p.date, value: p.volume != null ? p.volume / 1000 : 0, color: p.close >= p.open ? C.up : C.down })));
+    lwcVolumeSeries.setData(validPrice.map(p => ({ time: p.date, value: p.volume != null ? p.volume / 1000 : 0, color: p.close >= p.open ? C.up : C.down })));
     MA_WINDOWS.forEach(w => {
       const key = 'ma' + w;
       const s = lwcChart.addLineSeries({ color: MA_COLORS[key], lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, visible: w <= 20 });
-      const d = []; priceArr.forEach(p => { if (p[key] != null) d.push({ time: p.date, value: p[key] }); });
+      const d = []; validPrice.forEach(p => { if (p[key] != null) d.push({ time: p.date, value: p[key] }); });
       s.setData(d);
       lwcMASeries[key] = s;
     });
-    const len = priceArr.length;
+    const len = validPrice.length;
     if (len > 0) {
-      const from = priceArr[Math.max(0, len - 60)].date;
-      const to = priceArr[len - 1].date;
+      const from = validPrice[Math.max(0, len - 60)].date;
+      const to = validPrice[len - 1].date;
       lwcChart.timeScale().setVisibleRange({ from, to });
     }
     els.maToggles.forEach(btn => {
@@ -368,28 +370,28 @@ window.StockModal = (() => {
     priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
     visible: currentMode === 'bb',
     });
-    const bbUpperData = []; priceArr.forEach(p => { if (p.bband_upper != null) bbUpperData.push({ time: p.date, value: p.bband_upper }); });
+    const bbUpperData = []; validPrice.forEach(p => { if (p.bband_upper != null) bbUpperData.push({ time: p.date, value: p.bband_upper }); });
     lwcBBUpper.setData(bbUpperData);
     lwcBBLower = lwcChart.addLineSeries({
     color: BB_COLOR, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.LargeDashed,
     priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
     visible: currentMode === 'bb',
     });
-    const bbLowerData = []; priceArr.forEach(p => { if (p.bband_lower != null) bbLowerData.push({ time: p.date, value: p.bband_lower }); });
+    const bbLowerData = []; validPrice.forEach(p => { if (p.bband_lower != null) bbLowerData.push({ time: p.date, value: p.bband_lower }); });
     lwcBBLower.setData(bbLowerData);
     // Hover legend: subscribe crosshair move
-    lastPriceBar = priceArr[priceArr.length - 1];
+    lastPriceBar = validPrice[validPrice.length - 1];
     if (els.hoverLegend && lastPriceBar) {
       updateHoverLegend(lastPriceBar, currentMode);
     }
     lwcChart.subscribeCrosshairMove(param => {
-      if (!param || !param.time || !priceArr.length) {
+      if (!param || !param.time || !validPrice.length) {
         updateHoverLegend(lastPriceBar, currentMode);
         return;
       }
-      const idx = priceArr.findIndex(p => p.date === param.time);
+      const idx = validPrice.findIndex(p => p.date === param.time);
       if (idx >= 0) {
-        updateHoverLegend(priceArr[idx], currentMode);
+        updateHoverLegend(validPrice[idx], currentMode);
       } else {
         updateHoverLegend(lastPriceBar, currentMode);
       }
