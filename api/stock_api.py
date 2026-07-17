@@ -157,9 +157,13 @@ def _compute_price_with_mas(price_df: pd.DataFrame) -> pd.DataFrame:
     對 price DataFrame（已排序 ascending by date）計算各期 MA 與布林通道。
     輸入須包含欄位：date, close_price
     回傳附加 ma5~ma240、bband_upper、bband_lower 的 DataFrame（由舊到新）。
+
+    停牌日（close_price 為 NaN）以前值填充（LOCF）後計算 MA，避免 MA 因單日缺失而永久中斷。
     """
     df = price_df.copy().sort_values("date")
     close = df["close_price"].astype(float)
+    # 向前填充停牌日的缺失價格（LOCF），確保 MA 時間序列不中斷
+    close = close.ffill()
 
     for w in MA_WINDOWS:
         col = MA_COLUMNS[w]
@@ -624,6 +628,9 @@ def _compute_ma_last_point(closes: list) -> dict:
     """
     對 closes 陣列的最後一筆計算 ma5~ma240。
 
+    使用 LOCF（Last Observation Carried Forward）處理缺失值：停牌日無收盤價時，
+    以前一交易日收盤價填充，確保時間序列不中斷且不將停牌日視為 0 元。
+
     例如 closes 長度為 240：
       ma5  = mean(closes[-5:])
       ma10 = mean(closes[-10:])
@@ -637,17 +644,32 @@ def _compute_ma_last_point(closes: list) -> dict:
         dict: { "ma5": ..., "ma10": ..., ..., "ma240": ... }
               若長度不足 window，該 ma 設為 None
     """
+    # LOCF：將 None 替換為最近一個有效收盤價
+    last_valid = None
+    filled = []
+    for v in closes:
+        if v is not None:
+            last_valid = v
+            filled.append(v)
+        else:
+            filled.append(last_valid)  # 若至今尚無有效值則為 None
+
+    # 若全部為 None，所有 MA 皆 None
+    if last_valid is None:
+        return {MA_COLUMNS[w]: None for w in MA_WINDOWS}
+
     mas = {}
-    total = len(closes)
+    total = len(filled)
     for w in MA_WINDOWS:
         key = MA_COLUMNS[w]
         if total >= w:
-            # 取最後 w 筆的平均
-            values = [v for v in closes[-w:] if v is not None]
-            if len(values) >= w:
-                mas[key] = round(sum(values) / w, 2)
-            else:
+            window = filled[-w:]
+            # LOCF 後可能仍有 None（陣列開頭尚無有效值時），
+            # 此時資料不足以計算該期 MA，回傳 None
+            if None in window:
                 mas[key] = None
+            else:
+                mas[key] = round(sum(window) / w, 2)
         else:
             mas[key] = None
     return mas
@@ -686,15 +708,14 @@ def _update_price_incremental(
         return existing_records
 
     # 從既有 records 取出最後 239 筆的 close（ascending，最末即最新）
+    # 保留 None（停牌日），由 _compute_ma_last_point() 內部 LOCF 處理
     trailing_closes = [
         r["close"] for r in existing_records[-_MAX_WINDOW_BEFORE:]
-        if r.get("close") is not None
     ]
 
-    # 加入新 close
+    # 加入新 close（可能為 None，由 _compute_ma_last_point LOCF 處理）
     new_close = _safe_float(latest_row.get("close_price"))
-    if new_close is not None:
-        trailing_closes.append(new_close)
+    trailing_closes.append(new_close)
 
     # 計算新資料的 MA
     mas = _compute_ma_last_point(trailing_closes)
