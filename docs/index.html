@@ -5,45 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chill 的台股觀測站</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+      }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-black text-slate-300 min-h-screen font-sans">
+<body class="bg-black text-slate-300 min-h-screen font-sans dark:bg-slate-200 dark:text-gray-800">
 
-    <header class="border-b border-slate-800 bg-black px-6 py-0.5 sticky top-0 z-50">
+    <header class="border-b border-slate-800 bg-black px-6 py-0.5 sticky top-0 z-50 dark:border-gray-300 dark:bg-slate-100">
         <div class="flex flex-wrap items-center justify-between gap-y-1">
 
             <div class="flex items-center space-x-4">
-                <h1 class="text-sm font-bold text-slate-100 tracking-widest uppercase">Chill 的台股觀測站</h1>
+                <h1 class="text-sm font-bold text-slate-100 tracking-widest uppercase dark:text-gray-900">Chill 的台股觀測站</h1>
             </div>
 
             <div class="flex items-center space-x-3">
                 <!-- 搜尋欄 -->
                 <div class="relative">
-                    <input id="stock-search" type="text" placeholder="🔍 搜尋股票代號/名稱"
-                        class="w-48 bg-black border border-slate-700 text-slate-300 px-2 py-1 text-xs focus:outline-none focus:border-emerald-500 placeholder-slate-600">
-                    <div id="search-dropdown" class="absolute top-full left-0 right-0 bg-black border border-slate-700 max-h-60 overflow-y-auto hidden z-[200]"></div>
+                    <input id="stock-search" type="text" placeholder="搜尋股票代號/名稱"
+                        class="w-48 bg-black border border-slate-700 text-slate-300 px-2 py-1 text-xs focus:outline-none focus:border-emerald-500 placeholder-slate-600 dark:bg-white dark:border-gray-300 dark:text-gray-800 dark:placeholder-gray-400">
+                    <div id="search-dropdown" class="absolute top-full left-0 right-0 bg-black border border-slate-700 max-h-60 overflow-y-auto hidden z-[200] dark:bg-white dark:border-gray-300"></div>
                 </div>
-                <span class="text-xs text-slate-500">日期</span>
-                <select id="date-select" class="bg-black border border-slate-700 text-slate-300 px-2 py-1 text-xs focus:outline-none">
+                <span class="text-xs text-slate-500 dark:text-gray-500">日期</span>
+                <select id="date-select" class="bg-black border border-slate-700 text-slate-300 px-2 py-1 text-xs focus:outline-none dark:bg-white dark:border-gray-300 dark:text-gray-800">
                     <option value="latest">latest</option>
                 </select>
+
+                <!-- Theme Toggle: 雙按鈕群組（仿 MA/BB 切換樣式） -->
+                <div class="flex border border-slate-700 rounded dark:border-gray-300 overflow-hidden" title="切換深色/淺色模式">
+                    <button id="theme-light" class="px-2 py-1 flex items-center justify-center text-slate-500 dark:text-gray-400" data-theme="light">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                    </button>
+                    <button id="theme-dark" class="px-2 py-1 flex items-center justify-center text-slate-500 dark:text-gray-400" data-theme="dark">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    </button>
+                </div>
             </div>
         </div>
 
-        <div id="data-status" class="text-2xs text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5 leading-5 mt-1">
-            <span class="text-slate-700">狀態載入中...</span>
+        <div id="data-status" class="text-2xs text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5 leading-5 mt-1 dark:text-gray-400">
+            <span class="text-slate-700 dark:text-gray-500">狀態載入中...</span>
 
         </div>
 
         <div class="flex flex-wrap mt-1">
-            <button class="tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-emerald-500 text-emerald-500" data-tab="tab-buy-amount">法人買超(金額)</button>
-            <button class="tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300" data-tab="tab-sell-amount">法人賣超(金額)</button>
-            <button class="tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300" data-tab="tab-buy-shares">法人買超(張數)</button>
-            <button class="tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300" data-tab="tab-sell-shares">法人賣超(張數)</button>
-            <button class="tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300" data-tab="tab-margin">融資券增減</button>
-            <button class="tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300" data-tab="tab-momentum">爆量</button>
-            <button class="tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300" data-tab="tab-large">大戶增減</button>
+            <button class="tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-emerald-500 text-emerald-500 dark:text-emerald-600" data-tab="tab-buy-amount">法人買超(金額)</button>
+            <button class="tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300 dark:text-gray-500 dark:hover:text-gray-700" data-tab="tab-sell-amount">法人賣超(金額)</button>
+            <button class="tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300 dark:text-gray-500 dark:hover:text-gray-700" data-tab="tab-buy-shares">法人買超(張數)</button>
+            <button class="tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300 dark:text-gray-500 dark:hover:text-gray-700" data-tab="tab-sell-shares">法人賣超(張數)</button>
+            <button class="tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300 dark:text-gray-500 dark:hover:text-gray-700" data-tab="tab-margin">融資券增減</button>
+            <button class="tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300 dark:text-gray-500 dark:hover:text-gray-700" data-tab="tab-momentum">爆量</button>
+            <button class="tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300 dark:text-gray-500 dark:hover:text-gray-700" data-tab="tab-large">大戶增減</button>
         </div>
     </header>
 
@@ -85,8 +100,8 @@
             if (!matches.length) { dropdown.classList.add("hidden"); dropdown.innerHTML = ""; return; }
 
             dropdown.innerHTML = matches.map(item =>
-                `<div class="px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer border-b border-slate-800 last:border-0 flex justify-between" data-stock-id="${item.stock_id}">
-                    <span><span class="text-slate-500">${item.stock_id}</span> <span class="text-slate-300">${item.stock_name}</span></span>
+                `<div class="px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer border-b border-slate-800 last:border-0 flex justify-between dark:text-gray-800 dark:hover:bg-gray-100 dark:border-gray-200" data-stock-id="${item.stock_id}">
+                    <span><span class="text-slate-500 dark:text-gray-400">${item.stock_id}</span> <span class="text-slate-300 dark:text-gray-800">${item.stock_name}</span></span>
                 </div>`
             ).join("");
             dropdown.classList.remove("hidden");
@@ -130,6 +145,27 @@
                 dropdown.classList.add("hidden");
             }
         });
+
+        // ── Theme Toggle (雙按鈕群組，仿 MA/BB 切換樣式) ──
+        const themeLightBtn = document.getElementById("theme-light");
+        const themeDarkBtn = document.getElementById("theme-dark");
+        const ACTIVE_THEME_CLS = 'bg-slate-700 dark:bg-gray-200 text-slate-200 dark:text-gray-800';
+        const INACTIVE_THEME_CLS = 'text-slate-500 dark:text-gray-400';
+        // isDark=true → Dark Mode (不加 dark class), isDark=false → Light Mode (加 dark class)
+        function applyTheme(isDark) {
+            document.documentElement.classList.toggle("dark", !isDark);
+            localStorage.setItem("theme", isDark ? "dark" : "light");
+            // 更新按鈕 active 狀態
+            themeLightBtn.className = `px-2 py-1 flex items-center justify-center ${isDark ? INACTIVE_THEME_CLS : ACTIVE_THEME_CLS}`;
+            themeDarkBtn.className = `px-2 py-1 flex items-center justify-center ${isDark ? ACTIVE_THEME_CLS : INACTIVE_THEME_CLS}`;
+            // 通知其他模組 theme 變更 (StockModal 的圖表需要手動更新)
+            window.dispatchEvent(new CustomEvent("themechange", { detail: { isDark } }));
+        }
+        themeLightBtn.addEventListener("click", () => applyTheme(false));
+        themeDarkBtn.addEventListener("click", () => applyTheme(true));
+        // 初始化：預設 dark（無紀錄 saved!=='light' → true → Dark Mode）
+        const saved = localStorage.getItem("theme");
+        applyTheme(saved !== "light");
     });
     </script>
 </body>

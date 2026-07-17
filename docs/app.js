@@ -70,21 +70,21 @@ document.addEventListener("DOMContentLoaded", () => {
             card.id = `card-${key}`;
             card.className = "h-full";
             card.innerHTML = `
-                <div class="p-3 border border-slate-800 h-full flex flex-col">
-                    <div class="flex justify-between items-baseline mb-2 pb-1 border-b border-slate-800">
-                        <span class="text-sm font-medium text-slate-400">${cfg.title}</span>
-                        <span class="text-xs text-slate-600">${cfg.unit}</span>
+                <div class="p-3 border border-slate-800 dark:border-gray-300 h-full flex flex-col dark:bg-slate-100">
+                    <div class="flex justify-between items-baseline mb-2 pb-1 border-b border-slate-800 dark:border-gray-200">
+                        <span class="text-sm font-medium text-slate-400 dark:text-gray-600">${cfg.title}</span>
+                        <span class="text-xs text-slate-600 dark:text-gray-400">${cfg.unit}</span>
                     </div>
                     <table class="table-fixed w-full text-xs">
                         <thead>
-                            <tr class="text-slate-600 border-b border-slate-800">
+                            <tr class="text-slate-600 dark:text-gray-400 border-b border-slate-800 dark:border-gray-200">
                                 <th class="w-1/2 pb-1 text-left font-normal">代號名稱</th>
                                 <th class="w-1/5 pb-1 text-right font-normal">收盤</th>
                                 <th class="w-[30%] pb-1 text-right font-normal">數值</th>
                             </tr>
                         </thead>
-                        <tbody id="body-${key}" class="divide-y divide-slate-900">
-                            <tr><td colspan="3" class="text-center py-3 text-slate-700 text-2xs">loading</td></tr>
+                        <tbody id="body-${key}" class="divide-y divide-slate-900 dark:divide-gray-200">
+                            <tr><td colspan="3" class="text-center py-3 text-slate-700 dark:text-gray-400 text-2xs">loading</td></tr>
                         </tbody>
                     </table>
                 </div>`;
@@ -102,11 +102,11 @@ document.addEventListener("DOMContentLoaded", () => {
         buttons.forEach(btn => {
             btn.addEventListener("click", () => {
                 buttons.forEach(b => {
-                    b.classList.remove("border-emerald-500", "text-emerald-500");
-                    b.classList.add("border-transparent", "text-slate-500");
+                    b.classList.remove("border-emerald-500", "text-emerald-500", "dark:text-emerald-600");
+                    b.classList.add("border-transparent", "text-slate-500", "dark:text-gray-500");
                 });
-                btn.classList.remove("border-transparent", "text-slate-500");
-                btn.classList.add("border-emerald-500", "text-emerald-500");
+                btn.classList.remove("border-transparent", "text-slate-500", "dark:text-gray-500");
+                btn.classList.add("border-emerald-500", "text-emerald-500", "dark:text-emerald-600");
 
                 contents.forEach(c => c.classList.add("hidden"));
 
@@ -166,7 +166,7 @@ document.addEventListener("DOMContentLoaded", () => {
             renderStatusBar("", null);
             Object.keys(METRIC_CONFIGS).forEach(key => {
                 const tbody = document.getElementById(`body-${key}`);
-                if (tbody) tbody.innerHTML = `<tr><td colspan="3" class="text-center py-3 text-rose-800 text-2xs">error</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="3" class="text-center py-3 text-rose-800 dark:text-rose-500 text-2xs">error</td></tr>`;
             });
         }
     }
@@ -180,16 +180,16 @@ document.addEventListener("DOMContentLoaded", () => {
         tbody.innerHTML = "";
 
         if (!data || data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="3" class="text-center py-3 text-slate-700 text-2xs">no signal</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="3" class="text-center py-3 text-slate-700 dark:text-gray-400 text-2xs">no signal</td></tr>`;
             return;
         }
 
         const cfg = METRIC_CONFIGS[metricKey];
-        const colorClass = cfg.isBuy ? "text-emerald-500" : "text-rose-500";
+        const colorClass = cfg.isBuy ? "text-emerald-500 dark:text-emerald-600" : "text-rose-500 dark:text-rose-500";
 
         data.forEach(item => {
             const tr = document.createElement("tr");
-            tr.className = "hover:bg-slate-900";
+            tr.className = "hover:bg-slate-900 dark:hover:bg-gray-100";
 
             const stockId = item.stock_id || "";
             const stockName = item.stock_name || "";
@@ -203,10 +203,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
             tr.innerHTML = `
                 <td class="py-1.5 pr-1 truncate">
-                    <span class="text-2xs text-slate-600">${stockId}</span>
-                    <span class="text-xs text-slate-300 ml-1">${stockName}</span>
+                    <span class="text-2xs text-slate-600 dark:text-gray-400">${stockId}</span>
+                    <span class="text-xs text-slate-300 dark:text-gray-800 ml-1">${stockName}</span>
                 </td>
-                <td class="py-1.5 text-right font-mono text-slate-500 text-xs">${displayPrice}</td>
+                <td class="py-1.5 text-right font-mono text-slate-500 dark:text-gray-500 text-xs">${displayPrice}</td>
                 <td class="py-1.5 text-right font-mono font-semibold text-xs ${colorClass}">${displayVal}</td>
             `;
             tbody.appendChild(tr);
@@ -249,7 +249,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderStatusBar(dataDate, dataStatus) {
         if (!statusBar) return;
         if (!dataDate || !dataStatus) {
-            statusBar.innerHTML = `<span class="text-3xs text-slate-700">狀態載入中...</span>`;
+            statusBar.innerHTML = `<span class="text-3xs text-slate-700 dark:text-gray-400">狀態載入中...</span>`;
             return;
         }
 
@@ -274,15 +274,15 @@ document.addEventListener("DOMContentLoaded", () => {
             } else {
                 ok = !!dataStatus[item.key];
             }
-            const color = ok ? "text-emerald-500" : "text-slate-700";
+            const color = ok ? "text-emerald-500 dark:text-emerald-600" : "text-slate-700 dark:text-gray-400";
             const dot = `<span class="${color}">●</span>`;
-            const extraHtml = extra ? `<span class="text-slate-600">${extra}</span>` : "";
+            const extraHtml = extra ? `<span class="text-slate-600 dark:text-gray-400">${extra}</span>` : "";
             return `<span class="inline-flex items-center gap-1">${dot} ${item.label} ${extraHtml}</span>`;
         });
 
         statusBar.innerHTML = `
-            <span class="text-slate-500 text-3xs mr-1">${dataDate.slice(0,4)}-${dataDate.slice(4,6)}-${dataDate.slice(6,8)}</span>
-            ${dots.join('<span class="text-slate-800 mx-0.5">|</span>')}
+            <span class="text-slate-500 dark:text-gray-500 text-3xs mr-1">${dataDate.slice(0,4)}-${dataDate.slice(4,6)}-${dataDate.slice(6,8)}</span>
+            ${dots.join('<span class="text-slate-800 dark:text-gray-300 mx-0.5">|</span>')}
         `;
     }
 
