@@ -25,6 +25,7 @@ from quant_system_v2.api.export_json import (
     export_dashboard_json_safe,
     _write_static_api_files,
 )
+from quant_system_v2.api.stock_api import update_tdcc_stock_jsons
 from quant_system_v2.utils.status_tracker import save_status
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,21 @@ def trigger_tdcc_backfill(tdcc_date_str: str) -> int:
     # ──────────────────────────────────────────
     output_dir = os.path.join(pkg_root, "docs", "api")
     _write_static_api_files(output_dir, affected[-1])
+
+    # ──────────────────────────────────────────
+    # 4. 個股 JSON tdcc 段落更新
+    #    在 TDCC 新資料寫入後（含週末延遲情境），
+    #    將最新集保週期同步到所有個股的 stock/{id}.json
+    # ──────────────────────────────────────────
+    try:
+        updated_stocks = update_tdcc_stock_jsons()
+        logger.info(
+            f"[tdcc_backfill] ✅ 個股 JSON tdcc 更新: {updated_stocks} 檔"
+        )
+    except Exception as e:
+        logger.error(
+            f"[tdcc_backfill] 個股 JSON tdcc 更新失敗: {e}", exc_info=True
+        )
 
     logger.info(
         f"[tdcc_backfill] ✅ 集保驅動回溯完成: "

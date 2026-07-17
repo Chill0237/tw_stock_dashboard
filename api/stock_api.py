@@ -774,6 +774,70 @@ def _update_chip_incremental(
     return _append_array(existing_records, new_records, max_len)
 
 
+def update_tdcc_stock_jsons() -> int:
+    """
+    輕量級：僅掃描 weekly_tdcc 目錄，對所有既有個股 JSON 更新 tdcc 段落。
+
+    不依賴 daily_price Parquet，可在週末或假日獨立執行。
+    僅讀寫個股 JSON 的 tdcc 段落與 updated_at，不觸及其他欄位。
+
+    Returns:
+        int: 實際更新 tdcc 段落的股票數
+    """
+    project_root = _resolve_project_root()
+    tdcc_dir = os.path.join(project_root, DATA_DIR, "parquet", "weekly_tdcc")
+
+    if not os.path.isdir(tdcc_dir):
+        logger.warning("[tdcc_stock] weekly_tdcc 目錄不存在")
+        return 0
+
+    stock_dir = _get_stock_dir()
+    if not os.path.isdir(stock_dir):
+        logger.warning("[tdcc_stock] stock 目錄不存在")
+        return 0
+
+    json_files = [
+        f for f in os.listdir(stock_dir)
+        if f.endswith(".json") and f != "index.json"
+    ]
+    if not json_files:
+        logger.warning("[tdcc_stock] 無個股 JSON")
+        return 0
+
+    now_str = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    updated_count = 0
+
+    for fname in json_files:
+        stock_id = fname.replace(".json", "")
+        existing = _load_stock_json(stock_id)
+        if existing is None:
+            continue
+
+        old_tdcc = existing.get("tdcc", [])
+        new_tdcc = _update_tdcc_incremental(
+            old_tdcc, tdcc_dir, stock_id, TDCC_MAX_RECORDS
+        )
+
+        # 僅在實際變動時寫入（比較筆數或最後一筆日期）
+        changed = False
+        if len(new_tdcc) != len(old_tdcc):
+            changed = True
+        elif new_tdcc and old_tdcc:
+            changed = new_tdcc[-1].get("date") != old_tdcc[-1].get("date")
+
+        if changed:
+            existing["tdcc"] = new_tdcc
+            existing["industry"] = existing.get("industry") or INDUSTRY_MAP.get(stock_id, "")
+            existing["updated_at"] = now_str
+            if _save_stock_json(stock_id, existing):
+                updated_count += 1
+
+    logger.info(
+        f"[tdcc_stock] ✅ 個股 JSON tdcc 更新完成: {updated_count}/{len(json_files)} 檔"
+    )
+    return updated_count
+
+
 def _update_tdcc_incremental(
     existing_records: list[dict],
     tdcc_dir: str,
