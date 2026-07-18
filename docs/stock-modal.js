@@ -99,7 +99,7 @@ window.StockModal = (() => {
         <div class="shrink-0 px-3 pt-2 pb-0" style="height:45%;min-height:280px;">
           <div id="kline-container" class="w-full h-full"></div>
         </div>
-        <div class="shrink-0 flex items-center px-3 py-1 gap-2 border-b border-slate-800 dark:border-gray-200" style="min-height:38px;">
+          <div id="chart-controls" class="shrink-0 flex items-center px-3 py-1 gap-2 border-b border-slate-800 dark:border-gray-200" style="min-height:38px;">
           <div id="hover-legend" class="flex-1 min-w-0 overflow-hidden flex flex-col justify-center text-slate-400 dark:text-slate-500" style="font-size:11px;font-family:monospace;line-height:1.25;">
             <div id="hover-legend-line1" style="white-space:nowrap;"></div>
             <div id="hover-legend-line2" style="white-space:nowrap;"></div>
@@ -113,7 +113,7 @@ window.StockModal = (() => {
         <div class="shrink-0 flex border-b border-slate-800 dark:border-gray-200">
           <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-emerald-500 text-emerald-500 dark:text-emerald-600" data-subtab="institutional">法人買賣超</button>
           <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 dark:text-gray-400 hover:text-slate-300 dark:hover:text-gray-600" data-subtab="margin">融資融券餘額</button>
-          <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 dark:text-gray-400 hover:text-slate-300 dark:hover:text-gray-600" data-subtab="tdcc">集保股權分散</button>
+          <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 dark:text-gray-400 hover:text-slate-300 dark:hover:text-gray-600" data-subtab="tdcc">集保股權分布</button>
         </div>
         <div class="flex-1 min-h-0 px-3 py-2"><div id="subchart-container" class="w-full h-full relative"><div class="absolute inset-0 flex items-center justify-center text-slate-700 dark:text-gray-400 text-xs">選取頁籤以檢視圖表</div></div></div>
       </div>
@@ -139,6 +139,7 @@ window.StockModal = (() => {
     els.hoverLegend = document.getElementById('hover-legend');
     els.hoverLegendLine1 = document.getElementById('hover-legend-line1');
     els.hoverLegendLine2 = document.getElementById('hover-legend-line2');
+    els.chartControls = document.getElementById('chart-controls');
   }
 
   /** Format a number for hover legend display */
@@ -226,7 +227,10 @@ window.StockModal = (() => {
 
   function bindEvents() {
     els.closeBtn.addEventListener('click', closeModal);
-    els.overlay.addEventListener('click', e => { if (e.target === els.overlay) closeModal(); });
+    let mouseDownOnOverlay = false;
+    els.overlay.addEventListener('mousedown', e => { mouseDownOnOverlay = (e.target === els.overlay); });
+    els.overlay.addEventListener('mouseup', e => { if (e.target === els.overlay && mouseDownOnOverlay) closeModal(); });
+    els.overlay.addEventListener('click', e => { if (e.target === els.overlay && mouseDownOnOverlay) closeModal(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
     if (els.btnModeMa) els.btnModeMa.addEventListener('click', () => { currentMode = 'ma'; updateModeUI(); });
     if (els.btnModeBb) els.btnModeBb.addEventListener('click', () => { currentMode = 'bb'; updateModeUI(); });
@@ -385,7 +389,9 @@ window.StockModal = (() => {
     } catch (e) {
       console.error('[StockModal]', e);
       els.headerInfo.innerHTML = `<span class="text-lg font-bold text-rose-500 dark:text-rose-600">${stockId}</span><span class="text-rose-700 dark:text-rose-500 text-xs ml-2">載入失敗</span>`;
-      els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-rose-800 dark:text-rose-500 text-xs">無法載入資料</div>';
+      els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-rose-800 dark:text-rose-500 text-xs">載入失敗</div>';
+      els.btnCmoney.classList.remove('hidden');
+      els.btnGoogle.classList.remove('hidden');
     }
   }
 
@@ -395,7 +401,16 @@ window.StockModal = (() => {
     if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null; }
     if (lwcChart) { lwcChart.remove(); lwcChart = null; lwcCandleSeries = null; lwcVolumeSeries = null; lwcMASeries = {}; lwcBBUpper = null; lwcBBLower = null; }
     if (chartJsInstance) { chartJsInstance.destroy(); chartJsInstance = null; chartJsType = null; }
-    // 保留 currentMode（不重置為 'ma'），讓重新開啟 modal 時圖表與按鈕保持同步
+    // Reset hover legend to prevent cross-stock leakage
+    if (els.hoverLegendLine1) els.hoverLegendLine1.innerHTML = '&nbsp;';
+    if (els.hoverLegendLine2) els.hoverLegendLine2.innerHTML = '&nbsp;';
+    lastPriceBar = null;
+    currentMode = 'ma';
+    // 預設將控制列鎖定 (等待 renderCandlestick 成功後才解鎖)
+    if (els.chartControls) els.chartControls.classList.add('opacity-50');
+    els.maToggles.forEach(b => b.disabled = true);
+    if (els.btnModeMa) els.btnModeMa.disabled = true;
+    if (els.btnModeBb) els.btnModeBb.disabled = true;
   }
 
   function renderHeader(data) {
@@ -403,7 +418,7 @@ window.StockModal = (() => {
     const name = data.stock_name || '';
     const industry = data.industry || '';
     const industryBadge = industry ? `<span class="text-2xs text-slate-200 dark:text-gray-700 ml-2">${industry}</span>` : '';
-    if (!arr.length) { els.headerInfo.innerHTML = `<span class="text-lg font-bold text-slate-100 dark:text-gray-900">${currentStockId}</span><span class="text-sm text-slate-400 dark:text-gray-500 ml-2">${name}${industryBadge}</span><span class="text-slate-600 dark:text-gray-400 text-xs ml-4">暫無價量資料</span>`; return; }
+    if (!arr.length) { els.headerInfo.innerHTML = `<span class="text-lg font-bold text-slate-100 dark:text-gray-900">${currentStockId}</span><span class="text-sm text-slate-400 dark:text-gray-500 ml-2">${name}${industryBadge}</span><span class="text-slate-600 dark:text-gray-400 text-xs ml-4">暫無價量資料</span>`; els.btnCmoney.classList.remove('hidden'); els.btnGoogle.classList.remove('hidden'); return; }
     const last = arr[arr.length - 1], prev = arr.length >= 2 ? arr[arr.length - 2] : null;
     const close = last.close;
     let ch = null, chPct = null;
@@ -417,9 +432,31 @@ window.StockModal = (() => {
   }
 
   function renderCandlestick(priceArr) {
-    if (!priceArr || !priceArr.length) { els.klineContainer.innerHTML = '<div class="w-full h-full flex items-center justify-center text-slate-700 dark:text-gray-400 text-xs">無價量資料</div>'; return; }
+    const lockControls = () => {
+      if (els.chartControls) els.chartControls.classList.add('opacity-50');
+      els.maToggles.forEach(b => b.disabled = true);
+      if (els.btnModeMa) els.btnModeMa.disabled = true;
+      if (els.btnModeBb) els.btnModeBb.disabled = true;
+    };
+    const unlockControls = () => {
+      if (els.chartControls) els.chartControls.classList.remove('opacity-50');
+      els.maToggles.forEach(b => b.disabled = false);
+      if (els.btnModeMa) els.btnModeMa.disabled = false;
+      if (els.btnModeBb) els.btnModeBb.disabled = false;
+    };
+
+    if (!priceArr || !priceArr.length) { 
+      els.klineContainer.innerHTML = '<div class="w-full h-full flex items-center justify-center text-slate-700 dark:text-gray-400 text-xs">無價量資料</div>'; 
+      lockControls(); 
+      return; 
+    }
     const validPrice = priceArr.filter(p => p.open != null && p.high != null && p.low != null && p.close != null);
-    if (!validPrice.length) { els.klineContainer.innerHTML = '<div class="w-full h-full flex items-center justify-center text-slate-700 dark:text-gray-400 text-xs">無有效價量資料</div>'; return; }
+    if (!validPrice.length) { 
+      els.klineContainer.innerHTML = '<div class="w-full h-full flex items-center justify-center text-slate-700 dark:text-gray-400 text-xs">無有效價量資料</div>'; 
+      lockControls(); 
+      return; 
+    }
+    unlockControls();
     els.klineContainer.innerHTML = '';
     const t = isDarkMode() ? LWC_THEME.dark : LWC_THEME.light;
     lwcChart = LightweightCharts.createChart(els.klineContainer, {
@@ -655,6 +692,8 @@ window.StockModal = (() => {
         return `<span class="text-slate-500 dark:text-slate-400" style="font-size:10px;">— +0人</span>`;
       }
 
+      const barColor = isDarkMode() ? '#226ce2' : '#93c5fd';
+
       for (const level of levels) {
         const count = level.count || 0;
         const ratio = level.ratio || 0;
@@ -687,9 +726,9 @@ window.StockModal = (() => {
         const leftBar = document.createElement('div');
         leftBar.style.cssText =
           `height:17px;width:${countPct.toFixed(1)}%;min-width:2px;` +
-          `background:#3b82f6;border-radius:4px 0 0 4px;` +
+          `background:${barColor};border-radius:4px 0 0 4px;` +
           `position:relative;display:flex;align-items:center;justify-content:flex-end;padding-right:2px;`;
-        leftBar.innerHTML = `<span class="text-slate-200 dark:text-gray-800" style="font-size:10px;white-space:nowrap;text-shadow:0 0 3px rgba(0,0,0,0.7);">${countFmt}</span>`;
+        leftBar.innerHTML = `<span class="text-white dark:text-gray-800" style="font-size:10px;white-space:nowrap;">${countFmt}</span>`;
         leftBarWrap.appendChild(leftBar);
         row.appendChild(leftBarWrap);
 
@@ -708,9 +747,9 @@ window.StockModal = (() => {
         const rightBar = document.createElement('div');
         rightBar.style.cssText =
           `height:17px;width:${ratioPct.toFixed(1)}%;min-width:2px;` +
-          `background:#3b82f6;border-radius:0 4px 4px 0;` +
+          `background:${barColor};border-radius:0 4px 4px 0;` +
           `position:relative;display:flex;align-items:center;padding-left:2px;`;
-        rightBar.innerHTML = `<span class="text-slate-200 dark:text-gray-800" style="font-size:10px;white-space:nowrap;text-shadow:0 0 3px rgba(0,0,0,0.7);">${ratioFmt}</span>`;
+        rightBar.innerHTML = `<span class="text-white dark:text-gray-800" style="font-size:10px;white-space:nowrap;">${ratioFmt}</span>`;
         rightBarWrap.appendChild(rightBar);
         row.appendChild(rightBarWrap);
 
