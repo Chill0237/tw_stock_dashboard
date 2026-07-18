@@ -277,19 +277,21 @@ def _phase1_crawl(target_date: str) -> bool:
         if not status["margin_twse"] and not status["margin_tpex"]:
             logger.warning("  ⚠️  融資券無資料（上市與上櫃皆失敗），跳過。")
 
-    # ── 4. TDCC 集保股權分散表（去重寫入，不變）──
-    if not status.get("tdcc_date"):
-        logger.info("[Phase1] 抓取 TDCC 集保資料（最新快照）...")
-        try:
-            df_tdcc = fetch_tdcc_distribution()
-            if df_tdcc is not None and not df_tdcc.empty:
-                tdcc_date = str(df_tdcc["日期"].iloc[0]).strip()
-
-                # 檢查是否已存在（避免重複寫入）
-                existing = load_dataframe("weekly_tdcc", tdcc_date)
-                if not existing.empty:
-                    logger.info(f"  [Skip] 集保資料 (日期: {tdcc_date}) 已存在，跳過寫入。")
-                else:
+    # ── 4. TDCC 集保股權分散表（輕量探測去重）──
+    from quant_system_v2.crawler.market_crawler import check_tdcc_latest_date
+    logger.info("[Phase1] 探測 TDCC 集保最新日期...")
+    try:
+        tdcc_date = check_tdcc_latest_date()
+        if tdcc_date is None:
+            logger.warning("  ⚠️  TDCC 集保日期探測失敗，跳過。")
+        else:
+            existing = load_dataframe("weekly_tdcc", tdcc_date)
+            if not existing.empty:
+                logger.info(f"  [Skip] 集保資料 (日期: {tdcc_date}) 已存在，跳過寫入。")
+            else:
+                logger.info(f"  [Phase1] 下載 TDCC 集保完整資料 ({tdcc_date})...")
+                df_tdcc = fetch_tdcc_distribution()
+                if df_tdcc is not None and not df_tdcc.empty:
                     save_dataframe(df_tdcc, "weekly_tdcc", tdcc_date)
                     logger.info(f"  ✅ 集保資料已儲存 ({len(df_tdcc)} 列, 日期={tdcc_date})")
 
@@ -297,17 +299,15 @@ def _phase1_crawl(target_date: str) -> bool:
                     from quant_system_v2.api.tdcc_backfill import trigger_tdcc_backfill
                     updated = trigger_tdcc_backfill(tdcc_date)
                     logger.info(f"  ✅ 集保驅動 Dashboard 回溯: {updated} 個日期已更新")
+                else:
+                    logger.warning("  ⚠️  TDCC 集保完整下載失敗，跳過。")
 
-                # 更新 status 中的 tdcc_date（不管是否新寫入，只要有最新日期就記錄）
-                save_status(target_date, {"tdcc_date": tdcc_date})
-                if not status.get("tdcc_date"):
-                    changed = True
-            else:
-                logger.warning("  ⚠️  TDCC 集保資料抓取失敗（回傳空），跳過。")
-        except Exception as e:
-            logger.error(f"  ❌ TDCC 集保處理異常: {e}", exc_info=True)
-    else:
-        logger.info(f"  [Skip] 集保資料已存在 (日期: {status.get('tdcc_date')})")
+            # 更新 status 中的 tdcc_date（不管是否新寫入，只要有最新日期就記錄）
+            save_status(target_date, {"tdcc_date": tdcc_date})
+            if not status.get("tdcc_date"):
+                changed = True
+    except Exception as e:
+        logger.error(f"  ❌ TDCC 集保處理異常: {e}", exc_info=True)
 
     return changed
 

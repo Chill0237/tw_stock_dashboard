@@ -92,32 +92,10 @@ def _fetch_csv_text(
     """
     發送 HTTP 請求並回傳原始 CSV 文字內容。
     用於 TDCC 集保等以 CSV 格式回傳的 API。
-
-    內建 Cache-Busting：
-      - Cache-Control / Pragma / Expires headers 強制穿透 CDN 與代理快取
-      - URL 帶入 timestamp query param 繞過 CDN key-based 快取
+    內建重試 + 指數退避 + User-Agent 輪換。
     """
     for attempt in range(MAX_RETRIES):
         headers = _rotate_user_agent()
-
-        # ── 深度瀏覽器偽裝：避免 CDN 透過 HTTP Fingerprinting 降級為 Bot 快取池 ──
-        headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
-        headers["Accept-Language"] = "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7"
-        headers["Accept-Encoding"] = "gzip, deflate"
-        headers["Upgrade-Insecure-Requests"] = "1"
-        headers["Sec-Fetch-Dest"] = "document"
-        headers["Sec-Fetch-Mode"] = "navigate"
-        headers["Sec-Fetch-Site"] = "none"
-
-        # 強制穿透所有快取層級（CDN + 代理 + 伺服器端）
-        headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        headers["Pragma"] = "no-cache"
-        headers["Expires"] = "0"
-
-        # 每次請求附加不重複 timestamp，繞過 CDN key-based 快取
-        req_params = dict(params) if params else {}
-        req_params["_"] = int(time.time() * 1000)
-
         try:
             wait = _exponential_backoff(attempt)
             if attempt > 0:
@@ -125,10 +103,9 @@ def _fetch_csv_text(
                 time.sleep(wait)
 
             logger.info(f"[{label}] 請求中 (第 {attempt + 1}/{MAX_RETRIES} 次)...")
-            res = requests.get(url, params=req_params, headers=headers, timeout=DEFAULT_TIMEOUT * 2, verify=False)
+            res = requests.get(url, params=params, headers=headers, timeout=DEFAULT_TIMEOUT * 2, verify=False)
 
             if res.status_code == 200:
-                logger.info(f"[{label}] 回應標頭: {dict(res.headers)}")
                 return res.text
             else:
                 logger.warning(f"[{label}] HTTP {res.status_code}")
@@ -505,6 +482,68 @@ TDCC_DISTRIBUTION_URL = "https://opendata.tdcc.com.tw/getOD.ashx?id=1-5"
 每日更新（但實務上僅週六會發布新一期結算資料）。
 採用「每日輪詢、重複不寫入」架構，由呼叫方處理去重。
 """
+
+
+def check_tdcc_latest_date() -> Optional[str]:
+    """
+    輕量探測 TDCC 集保 OpenData 的最新資料日期。
+
+    僅讀取 CSV 前兩行（header + 第一筆資料），透過「公司代號,日期,分級...」
+    格式的第二行提取日期欄位後立即關閉 HTTP 連線。
+
+    不下載完整 ~2MB CSV 內容，不使用 Pandas 解析。
+
+    Returns:
+        str: YYYYMMDD 格式的資料日期字串
+        None: 連線失敗、CSV 格式異常或重試耗盡
+    """
+    label = "TDCC探測"
+    for attempt in range(MAX_RETRIES):
+        headers = _rotate_user_agent()
+        try:
+            wait = _exponential_backoff(attempt)
+            if attempt > 0:
+                logger.info(f"[{label}] 重試 #{attempt + 1} (等待 {wait:.1f}s)...")
+                time.sleep(wait)
+            logger.info(f"[{label}] 探測最新日期 (第 {attempt + 1}/{MAX_RETRIES} 次)...")
+            res = requests.get(
+                TDCC_DISTRIBUTION_URL,
+                headers=headers,
+                stream=True,
+                timeout=DEFAULT_TIMEOUT * 2,
+                verify=False,
+            )
+            if res.status_code != 200:
+                logger.warning(f"[{label}] HTTP {res.status_code}")
+                res.close()
+                continue
+            lines = []
+            for line in res.iter_lines(decode_unicode=True):
+                if line:
+                    lines.append(line)
+                if len(lines) >= 2:
+                    break
+            res.close()
+            if len(lines) < 2:
+                logger.warning(f"[{label}] CSV 行數不足 ({len(lines)}), 無法解析日期")
+                continue
+            # 格式: 資料日期,證券代號,持股分級,人數,股數,占集保庫存數比例%
+            # ⚠️ 第一行 header 可能帶 UTF-8 BOM (\ufeff)，第一欄才是日期
+            parts = lines[1].split(",")
+            date_str = parts[0].strip().lstrip("\ufeff") if len(parts) >= 1 else ""
+            if not date_str:
+                logger.warning(f"[{label}] 第二行無法提取日期欄位")
+                continue
+            logger.info(f"[{label}] 最新資料日期: {date_str}")
+            return date_str
+        except requests.exceptions.Timeout:
+            logger.warning(f"[{label}] 連線超時")
+        except requests.exceptions.ConnectionError as e:
+            logger.warning(f"[{label}] 連線錯誤: {e}")
+        except Exception as e:
+            logger.warning(f"[{label}] 未知錯誤: {e}")
+    logger.error(f"[{label}] 探測失敗，已達最大重試次數")
+    return None
 
 
 def fetch_tdcc_distribution() -> Optional[pd.DataFrame]:
