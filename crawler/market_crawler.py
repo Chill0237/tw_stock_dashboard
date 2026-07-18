@@ -128,7 +128,7 @@ def _fetch_csv_text(
             res = requests.get(url, params=req_params, headers=headers, timeout=DEFAULT_TIMEOUT * 2, verify=False)
 
             if res.status_code == 200:
-                logger.debug(f"[{label}] 回應標頭: {dict(res.headers)}")
+                logger.info(f"[{label}] 回應標頭: {dict(res.headers)}")
                 return res.text
             else:
                 logger.warning(f"[{label}] HTTP {res.status_code}")
