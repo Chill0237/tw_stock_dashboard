@@ -275,8 +275,9 @@ window.StockModal = (() => {
 
     // ── Theme change listener ──
     window.addEventListener('themechange', () => {
-      // 優先更新 MA 膠囊顏色（不依賴 lwcChart）
-      applyMAColors();
+      applyLwcTheme();       // 更新圖表背景、網格、文字顏色 + MA 色彩
+      updateModeUI();         // 重新套用 MA/BB 模式的可見性狀態
+      applyChartJsTheme();   // 更新 Chart.js 顏色（若有 Chart.js）
     });
   }
 
@@ -376,6 +377,7 @@ window.StockModal = (() => {
       const data = await r.json();
       renderHeader(data);
       renderCandlestick(data.price || []);
+      updateModeUI();  // 同步按鈕與圖表狀態（保留上次關閉時的模式選擇）
       els.subTabBtns.forEach(b => { b.classList.remove('border-emerald-500', 'text-emerald-500', 'dark:text-emerald-600'); b.classList.add('border-transparent', 'text-slate-500', 'dark:text-gray-400'); });
       const ft = els.subTabBtns[0];
       if (ft) { ft.classList.remove('border-transparent', 'text-slate-500', 'dark:text-gray-400'); ft.classList.add('border-emerald-500', 'text-emerald-500', 'dark:text-emerald-600'); }
@@ -393,7 +395,7 @@ window.StockModal = (() => {
     if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null; }
     if (lwcChart) { lwcChart.remove(); lwcChart = null; lwcCandleSeries = null; lwcVolumeSeries = null; lwcMASeries = {}; lwcBBUpper = null; lwcBBLower = null; }
     if (chartJsInstance) { chartJsInstance.destroy(); chartJsInstance = null; chartJsType = null; }
-    currentMode = 'ma';
+    // 保留 currentMode（不重置為 'ma'），讓重新開啟 modal 時圖表與按鈕保持同步
   }
 
   function renderHeader(data) {
@@ -464,7 +466,16 @@ window.StockModal = (() => {
     lwcVolumeSeries.setData(validPrice.map(p => ({ time: p.date, value: p.volume != null ? p.volume / 1000 : 0, color: p.close >= p.open ? C.up : C.down })));
     MA_WINDOWS.forEach(w => {
       const key = 'ma' + w;
-      const s = lwcChart.addLineSeries({ color: (isDarkMode() ? MA_COLORS : MA_COLORS_LIGHT)[key], lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, visible: w <= 20 });
+      // 初始可見性直接根據 currentMode 決定，避免 LWC 內部重新渲染時重置為錯誤狀態
+      let visible;
+      if (currentMode === 'ma') {
+        // MA 模式下，只有膠囊 active (w<=20) 的才顯示
+        visible = w <= 20;
+      } else {
+        // BB 模式下，只有 ma20 作為布林中線顯示
+        visible = w === 20;
+      }
+      const s = lwcChart.addLineSeries({ color: (isDarkMode() ? MA_COLORS : MA_COLORS_LIGHT)[key], lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, visible });
       const d = []; validPrice.forEach(p => { if (p[key] != null) d.push({ time: p.date, value: p[key] }); });
       s.setData(d);
       lwcMASeries[key] = s;
@@ -475,13 +486,6 @@ window.StockModal = (() => {
       const to = validPrice[len - 1].date;
       lwcChart.timeScale().setVisibleRange({ from, to });
     }
-    els.maToggles.forEach(btn => {
-      const s = lwcMASeries[btn.dataset.ma];
-      if (s) {
-        const isMA = currentMode === 'ma';
-        s.applyOptions({ visible: isMA ? (btn.dataset.active === 'true') : (btn.dataset.ma === 'ma20') });
-      }
-    });
     // BBands lines
     lwcBBUpper = lwcChart.addLineSeries({
     color: BB_COLOR, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.LargeDashed,
