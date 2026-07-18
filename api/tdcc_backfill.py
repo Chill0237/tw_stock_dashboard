@@ -67,16 +67,19 @@ def trigger_tdcc_backfill(tdcc_date_str: str) -> int:
 
     # ──────────────────────────────────────────
     # 2. 依序重算（舊→新）
+    #    先更新 status 再 export，確保 Dashboard JSON 內嵌的
+    #    data_status.tdcc_date 為最新值
     # ──────────────────────────────────────────
     count = 0
     for date_str in affected:
         try:
+            # 先更新 status，這樣 export_dashboard_json 內嵌的 load_status
+            # 才能抓到最新的 tdcc_date
+            save_status(date_str, {"tdcc_date": tdcc_date_str})
             result = export_dashboard_json_safe(
                 date_str, history_max_date=date_str
             )
             if result:
-                # 同步更新 status.json：此日期的 tdcc_date 已可用
-                save_status(date_str, {"tdcc_date": tdcc_date_str})
                 count += 1
         except Exception as e:
             logger.error(
