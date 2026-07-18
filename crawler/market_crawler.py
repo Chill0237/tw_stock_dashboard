@@ -99,6 +99,16 @@ def _fetch_csv_text(
     """
     for attempt in range(MAX_RETRIES):
         headers = _rotate_user_agent()
+
+        # ── 深度瀏覽器偽裝：避免 CDN 透過 HTTP Fingerprinting 降級為 Bot 快取池 ──
+        headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+        headers["Accept-Language"] = "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7"
+        headers["Accept-Encoding"] = "gzip, deflate"
+        headers["Upgrade-Insecure-Requests"] = "1"
+        headers["Sec-Fetch-Dest"] = "document"
+        headers["Sec-Fetch-Mode"] = "navigate"
+        headers["Sec-Fetch-Site"] = "none"
+
         # 強制穿透所有快取層級（CDN + 代理 + 伺服器端）
         headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         headers["Pragma"] = "no-cache"
@@ -118,6 +128,7 @@ def _fetch_csv_text(
             res = requests.get(url, params=req_params, headers=headers, timeout=DEFAULT_TIMEOUT * 2, verify=False)
 
             if res.status_code == 200:
+                logger.debug(f"[{label}] 回應標頭: {dict(res.headers)}")
                 return res.text
             else:
                 logger.warning(f"[{label}] HTTP {res.status_code}")
