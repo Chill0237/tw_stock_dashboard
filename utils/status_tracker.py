@@ -161,8 +161,11 @@ def save_status(date_str: str, updates: dict) -> None:
     """
     對指定日期做部分欄位更新，不影響其他日期。
 
+    只有在任何欄位的值真正改變時才會寫入檔案並更新 updated_at；
+    若更新值與既有紀錄完全相同，則跳過寫入，避免無意義的 git diff。
+
     範例：
-        save_status("20260712", {"price_twse": True})
+     若更新值與既有紀錄完全相同，則跳過寫入，避免無意義的 git diff。
 
     Args:
         date_str: YYYYMMDD 格式日期
@@ -178,6 +181,17 @@ def save_status(date_str: str, updates: dict) -> None:
     # 確保該日期紀錄存在（若無則初始化全 false）
     if d not in data["dates"]:
         data["dates"][d] = dict(DEFAULT_COMPLETENESS)
+
+    # 檢查是否有任何欄位真正改變
+    existing = data["dates"][d]
+    has_changes = False
+    for key, value in updates.items():
+        if existing.get(key) != value:
+            has_changes = True
+            break
+
+    if not has_changes:
+        return
 
     # 部分更新
     data["dates"][d].update(updates)
