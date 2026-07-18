@@ -343,9 +343,11 @@ window.StockModal = (() => {
       opts.scales.y.ticks.color = t.yTickColor;
       if (opts.scales.y.title) opts.scales.y.title.color = t.yTickColor;
     }
-    if (chartJsType === 'margin' && opts.scales.y1) {
-      opts.scales.y1.ticks.color = '#3b82f6';
-      if (opts.scales.y1.title) opts.scales.y1.title.color = '#3b82f6';
+    if (chartJsType === 'margin') {
+      if (opts.scales.yFin) opts.scales.yFin.ticks.color = '#f59e0b';
+      if (opts.scales.yMar) opts.scales.yMar.ticks.color = '#3b82f6';
+      if (opts.scales.yFin && opts.scales.yFin.grid) opts.scales.yFin.grid.color = t.yGridColor;
+      if (opts.scales.yMar && opts.scales.yMar.grid) opts.scales.yMar.grid.color = t.yGridColor;
     }
     chartJsInstance.update('none');
   }
@@ -595,22 +597,29 @@ window.StockModal = (() => {
     els.subchartContainer.innerHTML = '';
     els.subchartContainer.appendChild(canvas);
     const t = isDarkMode() ? CHARTJS_THEME.dark : CHARTJS_THEME.light;
+
+    const fmtMarginAxis = v => {
+      if (Math.abs(v) < 10000) return v.toLocaleString() + '張';
+      return (v / 10000).toFixed(0) + '萬';
+    };
+
     chartJsInstance = new Chart(canvas, {
       type: 'line',
       data: { labels: data.map(d => d.date.slice(5)), datasets: [
-        { label: '融資餘額', data: data.map(d => (d.fin_balance || 0)), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3, pointRadius: 2, pointHitRadius: 8 },
-        { label: '融券餘額', data: data.map(d => (d.mar_balance || 0)), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3, pointRadius: 2, pointHitRadius: 8, yAxisID: 'y1' },
+        { label: '融資餘額', data: data.map(d => (d.fin_balance || 0)), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.05)', fill: true, tension: 0.2, pointRadius: 1.5, pointHitRadius: 8, yAxisID: 'yFin' },
+        { label: '融券餘額', data: data.map(d => (d.mar_balance || 0)), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.05)', fill: true, tension: 0.2, pointRadius: 1.5, pointHitRadius: 8, yAxisID: 'yMar' },
       ]},
       options: {
         responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { position: 'top', labels: { color: t.legendColor, font: { size: 10 }, boxWidth: 12, padding: 8 } }, tooltip: { backgroundColor: t.tooltipBg, titleColor: t.tooltipTitle, bodyColor: t.tooltipBody, borderColor: t.tooltipBorder, borderWidth: 1, callbacks: { label: ctx => `${ctx.dataset.label}: ${(ctx.parsed.y / 10000).toFixed(1)} 萬` } } },
+        plugins: { legend: { position: 'top', labels: { color: t.legendColor, font: { size: 10 }, boxWidth: 12, padding: 8 } }, tooltip: { backgroundColor: t.tooltipBg, titleColor: t.tooltipTitle, bodyColor: t.tooltipBody, borderColor: t.tooltipBorder, borderWidth: 1, callbacks: { label: ctx => { const val = ctx.parsed.y; if (Math.abs(val) < 10000) return `${ctx.dataset.label}: ${val.toLocaleString()} 張`; return `${ctx.dataset.label}: ${(val / 10000).toFixed(2)} 萬張`; } } } },
         scales: {
           x: { ticks: { color: t.tickColor, font: { size: 9 }, maxRotation: 45 }, grid: { color: t.gridColor } },
-          y: { position: 'left', ticks: { color: '#f59e0b', font: { size: 9 }, callback: v => (v / 10000).toFixed(1) + '萬' }, grid: { color: t.yGridColor }, title: { display: true, text: '融資', color: '#f59e0b', font: { size: 9 } } },
-          y1: { position: 'right', ticks: { color: '#3b82f6', font: { size: 9 }, callback: v => v.toFixed(0) }, grid: { display: false }, title: { display: true, text: '融券', color: '#3b82f6', font: { size: 9 } } },
+          yFin: { type: 'linear', position: 'left', stack: 'marginStack', stackWeight: 1, ticks: { color: '#f59e0b', font: { size: 9 }, callback: fmtMarginAxis }, grid: { color: t.yGridColor }, title: { display: true, text: '融資餘額', color: '#f59e0b', font: { size: 9 } } },
+          yMar: { type: 'linear', position: 'left', stack: 'marginStack', stackWeight: 1, offset: true, ticks: { color: '#3b82f6', font: { size: 9 }, callback: fmtMarginAxis }, grid: { color: t.yGridColor }, title: { display: true, text: '融券餘額', color: '#3b82f6', font: { size: 9 } } },
         },
       },
     });
+    chartJsInstance.update('none');
     chartJsType = 'margin';
   }
 
