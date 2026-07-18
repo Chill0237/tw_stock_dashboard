@@ -92,9 +92,22 @@ def _fetch_csv_text(
     """
     發送 HTTP 請求並回傳原始 CSV 文字內容。
     用於 TDCC 集保等以 CSV 格式回傳的 API。
+
+    內建 Cache-Busting：
+      - Cache-Control / Pragma / Expires headers 強制穿透 CDN 與代理快取
+      - URL 帶入 timestamp query param 繞過 CDN key-based 快取
     """
     for attempt in range(MAX_RETRIES):
         headers = _rotate_user_agent()
+        # 強制穿透所有快取層級（CDN + 代理 + 伺服器端）
+        headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        headers["Pragma"] = "no-cache"
+        headers["Expires"] = "0"
+
+        # 每次請求附加不重複 timestamp，繞過 CDN key-based 快取
+        req_params = dict(params) if params else {}
+        req_params["_"] = int(time.time() * 1000)
+
         try:
             wait = _exponential_backoff(attempt)
             if attempt > 0:
@@ -102,7 +115,7 @@ def _fetch_csv_text(
                 time.sleep(wait)
 
             logger.info(f"[{label}] 請求中 (第 {attempt + 1}/{MAX_RETRIES} 次)...")
-            res = requests.get(url, params=params, headers=headers, timeout=DEFAULT_TIMEOUT * 2, verify=False)
+            res = requests.get(url, params=req_params, headers=headers, timeout=DEFAULT_TIMEOUT * 2, verify=False)
 
             if res.status_code == 200:
                 return res.text
