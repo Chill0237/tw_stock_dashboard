@@ -424,6 +424,20 @@ def main() -> None:
     _phase3_stock_update(target_date)
     logger.info("")
 
+    # ── Step 5.5: Phase 3.5 個股總表 snapshot ──
+    logger.info("=== Phase 3.5: 個股總表 snapshot ===")
+    logger.info("")
+    try:
+        from quant_system_v2.api.snapshot_api import export_daily_snapshot
+        snapshot_path = export_daily_snapshot(target_date)
+        if snapshot_path:
+            logger.info(f"  ✅ Snapshot: {snapshot_path}")
+        else:
+            logger.warning("  ⚠️  Snapshot 產出失敗（可能無 daily_price 資料）")
+    except Exception as e:
+        logger.error(f"  ❌ Snapshot 異常: {e}", exc_info=True)
+    logger.info("")
+
     logger.info(f"{'='*50}")
     logger.info(f"  ✅ 所有流程執行完畢")
     logger.info(f"{'='*50}")
