@@ -34,17 +34,18 @@ window.StockModal = (() => {
   const MA_COLORS = { ma5: '#06b0df', ma10: '#fa8beb', ma20: '#8b5cf6', ma60: '#10b981', ma120: '#ff6a07', ma240: '#f42929' };
   const MA_COLORS_LIGHT = { ma5: '#00acfc', ma10: '#de62ce', ma20: '#6d28d9', ma60: '#059669', ma120: '#d95c08', ma240: '#de1d1d' };
   const BB_COLOR = '#a78bfa';
+  const BB_COLOR_LIGHT = '#7c3aed';
   const C = { up: 'rgba(239,68,68,0.5)', upBorder: '#ef4444', down: 'rgba(16,185,129,0.5)', downBorder: '#10b981', foreign: '#3b82f6', trust: '#10b981', prop: '#f59e0b' };
 
   // ── Theme color configs for Lightweight Charts & Chart.js ──
   const LWC_THEME = {
     dark: {
-      bg: '#000000', text: '#94a3b8', grid: '#1e293b',
-      crosshairLine: '#475569', crosshairLabelBg: '#334155',
+      bg: '#020617', text: '#94a3b8', grid: '#1e293b',
+      crosshairLine: '#334155', crosshairLabelBg: '#1e293b',
       border: '#334155',
     },
     light: {
-      bg: '#ffffff', text: '#475569', grid: '#e2e8f0',
+      bg: '#f8fafc', text: '#475569', grid: '#e2e8f0',
       crosshairLine: '#94a3b8', crosshairLabelBg: '#cbd5e1',
       border: '#cbd5e1',
     },
@@ -87,35 +88,35 @@ window.StockModal = (() => {
       return `<button class="ma-capsule ${active === 'false' ? inactiveClass : ''}" data-ma="${key}" data-active="${active}" style="${baseStyle}${active === 'true' ? activeBg : ''}">MA${w}</button>`;
     }).join('');
     const html = `<div id="stock-modal-overlay" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 dark:bg-black/40 hidden" style="backdrop-filter:blur(2px);">
-      <div id="stock-modal" class="relative w-[90vw] max-w-5xl h-[90vh] max-h-[900px] bg-black dark:bg-white border border-slate-800 dark:border-gray-300 flex flex-col overflow-hidden shadow-2xl">
-        <div class="shrink-0 flex items-center justify-between px-4 py-2 border-b border-slate-800 dark:border-gray-200 bg-black/90 dark:bg-white/90">
+      <div id="stock-modal" class="relative w-[90vw] max-w-5xl h-[90vh] max-h-[900px] bg-slate-900 dark:bg-slate-50 border border-slate-700 dark:border-slate-200 flex flex-col overflow-hidden shadow-2xl">
+        <div class="shrink-0 flex items-center justify-between px-4 py-2 border-b border-slate-700 dark:border-slate-200 bg-slate-900/95 dark:bg-slate-50/95">
           <div id="modal-header-info" class="flex items-center gap-3 min-w-0"><span class="text-lg font-bold text-slate-100 dark:text-gray-900">載入中...</span></div>
           <div class="flex items-center gap-2 shrink-0">
-             <button id="modal-btn-cmoney" title="股市同學會" class="hidden text-xs px-2 py-1 rounded bg-slate-800 dark:bg-gray-100 hover:bg-slate-700 dark:hover:bg-gray-200 text-slate-400 dark:text-gray-500 hover:text-slate-200 dark:hover:text-gray-700 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>同學會</button>
-             <button id="modal-btn-google" title="Google 搜尋" class="hidden text-xs px-2 py-1 rounded bg-slate-800 dark:bg-gray-100 hover:bg-slate-700 dark:hover:bg-gray-200 text-slate-400 dark:text-gray-500 hover:text-slate-200 dark:hover:text-gray-700 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>做什麼</button>
-            <button id="modal-close-btn" class="ml-2 text-slate-500 dark:text-gray-400 hover:text-slate-200 dark:hover:text-gray-700 text-xl leading-none">&times;</button>
+             <button id="modal-btn-cmoney" title="股市同學會" class="hidden text-xs px-2 py-1 rounded bg-slate-700 dark:bg-slate-200 hover:bg-slate-600 dark:hover:bg-slate-300 text-slate-400 dark:text-gray-600 hover:text-slate-200 dark:hover:text-gray-700 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>同學會</button>
+             <button id="modal-btn-google" title="Google 搜尋" class="hidden text-xs px-2 py-1 rounded bg-slate-700 dark:bg-slate-200 hover:bg-slate-600 dark:hover:bg-slate-300 text-slate-400 dark:text-gray-600 hover:text-slate-200 dark:hover:text-gray-700 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>做什麼</button>
+            <button id="modal-close-btn" class="ml-2 text-slate-400 dark:text-gray-600 hover:text-slate-200 dark:hover:text-gray-700 text-xl leading-none">&times;</button>
           </div>
         </div>
         <div class="shrink-0 px-3 pt-2 pb-0" style="height:45%;min-height:280px;">
           <div id="kline-container" class="w-full h-full"></div>
         </div>
-          <div id="chart-controls" class="shrink-0 flex items-center px-3 py-1 gap-2 border-b border-slate-800 dark:border-gray-200" style="min-height:38px;">
-          <div id="hover-legend" class="flex-1 min-w-0 overflow-hidden flex flex-col justify-center text-slate-400 dark:text-slate-500" style="font-size:11px;font-family:monospace;line-height:1.25;">
+          <div id="chart-controls" class="shrink-0 flex items-center px-3 py-1 gap-2 border-b border-slate-700 dark:border-slate-200" style="min-height:38px;">
+          <div id="hover-legend" class="flex-1 min-w-0 overflow-hidden flex flex-col justify-center text-slate-300 dark:text-gray-600" style="font-size:11px;font-family:monospace;line-height:1.25;">
             <div id="hover-legend-line1" style="white-space:nowrap;"></div>
             <div id="hover-legend-line2" style="white-space:nowrap;"></div>
           </div>
           <span id="ma-checkboxes" class="inline-flex flex-wrap items-center gap-1.5 shrink-0">${maCapsules}</span>
-          <div class="flex rounded bg-slate-800 dark:bg-gray-100 p-0.5 shrink-0">
-            <button id="mode-btn-ma" class="px-2 py-0.5 rounded bg-slate-700 dark:bg-gray-200 text-slate-200 dark:text-gray-800" style="font-size:11px;">MA</button>
-            <button id="mode-btn-bb" class="px-2 py-0.5 rounded text-slate-500 dark:text-gray-400" style="font-size:11px;">BB</button>
+          <div class="flex rounded bg-slate-700 dark:bg-slate-200 p-0.5 shrink-0">
+            <button id="mode-btn-ma" class="px-2 py-0.5 rounded bg-slate-600 dark:bg-slate-300 text-slate-200 dark:text-gray-800" style="font-size:11px;">MA</button>
+            <button id="mode-btn-bb" class="px-2 py-0.5 rounded text-slate-400 dark:text-gray-600" style="font-size:11px;">BB</button>
           </div>
         </div>
-        <div class="shrink-0 flex border-b border-slate-800 dark:border-gray-200">
+        <div class="shrink-0 flex border-b border-slate-700 dark:border-slate-200">
           <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-emerald-500 text-emerald-500 dark:text-emerald-600" data-subtab="institutional">法人買賣超</button>
-          <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 dark:text-gray-400 hover:text-slate-300 dark:hover:text-gray-600" data-subtab="margin">融資融券餘額</button>
-          <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-500 dark:text-gray-400 hover:text-slate-300 dark:hover:text-gray-600" data-subtab="tdcc">集保股權分布</button>
+          <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-400 dark:text-gray-600 hover:text-slate-300 dark:hover:text-gray-700" data-subtab="margin">融資融券餘額</button>
+          <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-400 dark:text-gray-600 hover:text-slate-300 dark:hover:text-gray-700" data-subtab="tdcc">集保股權分布</button>
         </div>
-        <div class="flex-1 min-h-0 px-3 py-2"><div id="subchart-container" class="w-full h-full relative"><div class="absolute inset-0 flex items-center justify-center text-slate-700 dark:text-gray-400 text-xs">選取頁籤以檢視圖表</div></div></div>
+        <div class="flex-1 min-h-0 px-3 py-2"><div id="subchart-container" class="w-full h-full relative"><div class="absolute inset-0 flex items-center justify-center text-slate-600 dark:text-gray-600 text-xs">選取頁籤以檢視圖表</div></div></div>
       </div>
     </div>`;
     const wrapper = document.createElement('div');
@@ -268,8 +269,8 @@ window.StockModal = (() => {
     });
     els.subTabBtns.forEach(btn => {
       btn.addEventListener('click', () => {
-        els.subTabBtns.forEach(b => { b.classList.remove('border-emerald-500', 'text-emerald-500', 'dark:text-emerald-600'); b.classList.add('border-transparent', 'text-slate-500', 'dark:text-gray-400'); });
-        btn.classList.remove('border-transparent', 'text-slate-500', 'dark:text-gray-400');
+        els.subTabBtns.forEach(b => { b.classList.remove('border-emerald-500', 'text-emerald-500', 'dark:text-emerald-600'); b.classList.add('border-transparent', 'text-slate-400', 'dark:text-gray-600'); });
+        btn.classList.remove('border-transparent', 'text-slate-400', 'dark:text-gray-600');
         btn.classList.add('border-emerald-500', 'text-emerald-500', 'dark:text-emerald-600');
         renderSubTab(btn.dataset.subtab);
       });
@@ -324,6 +325,10 @@ window.StockModal = (() => {
         s.applyOptions({ color: palette[key] });
       }
     });
+    // update BB line colors
+    const bbColor = isDark ? BB_COLOR : BB_COLOR_LIGHT;
+    if (lwcBBUpper) lwcBBUpper.applyOptions({ color: bbColor });
+    if (lwcBBLower) lwcBBLower.applyOptions({ color: bbColor });
   }
 
   /** Apply current theme to Chart.js (via update('none'), no destroy needed) */
@@ -384,9 +389,9 @@ window.StockModal = (() => {
       renderHeader(data);
       renderCandlestick(data.price || []);
       updateModeUI();  // 同步按鈕與圖表狀態（保留上次關閉時的模式選擇）
-      els.subTabBtns.forEach(b => { b.classList.remove('border-emerald-500', 'text-emerald-500', 'dark:text-emerald-600'); b.classList.add('border-transparent', 'text-slate-500', 'dark:text-gray-400'); });
+      els.subTabBtns.forEach(b => { b.classList.remove('border-emerald-500', 'text-emerald-500', 'dark:text-emerald-600'); b.classList.add('border-transparent', 'text-slate-400', 'dark:text-gray-600'); });
       const ft = els.subTabBtns[0];
-      if (ft) { ft.classList.remove('border-transparent', 'text-slate-500', 'dark:text-gray-400'); ft.classList.add('border-emerald-500', 'text-emerald-500', 'dark:text-emerald-600'); }
+      if (ft) { ft.classList.remove('border-transparent', 'text-slate-400', 'dark:text-gray-600'); ft.classList.add('border-emerald-500', 'text-emerald-500', 'dark:text-emerald-600'); }
       renderSubTab('institutional');
     } catch (e) {
       console.error('[StockModal]', e);
@@ -527,14 +532,14 @@ window.StockModal = (() => {
     }
     // BBands lines
     lwcBBUpper = lwcChart.addLineSeries({
-    color: BB_COLOR, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.LargeDashed,
+    color: isDarkMode() ? BB_COLOR : BB_COLOR_LIGHT, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.LargeDashed,
     priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
     visible: currentMode === 'bb',
     });
     const bbUpperData = []; validPrice.forEach(p => { if (p.bband_upper != null) bbUpperData.push({ time: p.date, value: p.bband_upper }); });
     lwcBBUpper.setData(bbUpperData);
     lwcBBLower = lwcChart.addLineSeries({
-    color: BB_COLOR, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.LargeDashed,
+    color: isDarkMode() ? BB_COLOR : BB_COLOR_LIGHT, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.LargeDashed,
     priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
     visible: currentMode === 'bb',
     });
