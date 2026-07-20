@@ -698,8 +698,13 @@ def _update_price_incremental(
     if new_df.empty:
         return existing_records
 
+    # 過濾該股票的當日資料
+    df_stock = new_df[new_df["stock_id"] == stock_id]
+    if df_stock.empty:
+        return existing_records
+
     # 取得當日資料（取最後一筆，當日可能只有一筆）
-    latest_row = new_df.iloc[-1]
+    latest_row = df_stock.iloc[-1]
     new_date = str(latest_row["date"].strftime("%Y-%m-%d"))
 
     # 檢查是否已存在
