@@ -11,6 +11,8 @@
  * 支援 Dark/Light theme 切換：
  *   - 監聽 window 'themechange' event → applyOptions / update('none')
  *   - inline style 顏色已改用 Tailwind utility class，由 Tailwind dark: 機制自動處理
+ *
+ * 自選功能依賴：window.WatchlistStore（由 watchlist-store.js 注入）
  */
 window.StockModal = (() => {
   'use strict';
@@ -29,6 +31,9 @@ window.StockModal = (() => {
   let els = {};
   let currentMode = 'ma';
   let lastPriceBar = null;
+  let outsideClickHandler = null;
+  let watchlistChangeHandler = null;
+  let _dropdownOpen = false;
 
   const MA_WINDOWS = [5, 10, 20, 60, 120, 240];
   const MA_COLORS = { ma5: '#06b0df', ma10: '#fa8beb', ma20: '#8b5cf6', ma60: '#10b981', ma120: '#ff6a07', ma240: '#f42929' };
@@ -65,7 +70,7 @@ window.StockModal = (() => {
   };
 
   function isDarkMode() {
-    return !document.documentElement.classList.contains('dark');
+    return document.documentElement.classList.contains('dark');
   }
 
   function init() {
@@ -87,36 +92,40 @@ window.StockModal = (() => {
       const baseStyle = 'padding:2px 7px;font-size:10px;border-radius:9999px;border-width:1px;border-style:solid;cursor:pointer;transition:all 150ms ease;font-family:monospace;line-height:1.4;user-select:none;';
       return `<button class="ma-capsule ${active === 'false' ? inactiveClass : ''}" data-ma="${key}" data-active="${active}" style="${baseStyle}${active === 'true' ? activeBg : ''}">MA${w}</button>`;
     }).join('');
-    const html = `<div id="stock-modal-overlay" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 dark:bg-black/40 hidden" style="backdrop-filter:blur(2px);">
-      <div id="stock-modal" class="relative w-[90vw] max-w-5xl h-[90vh] max-h-[900px] bg-slate-900 dark:bg-slate-50 border border-slate-700 dark:border-slate-200 flex flex-col overflow-hidden shadow-2xl">
-        <div class="shrink-0 flex items-center justify-between px-4 py-2 border-b border-slate-700 dark:border-slate-200 bg-slate-900/95 dark:bg-slate-50/95">
-          <div id="modal-header-info" class="flex items-center gap-3 min-w-0"><span class="text-lg font-bold text-slate-100 dark:text-gray-900">載入中...</span></div>
+    const html = `<div id="stock-modal-overlay" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 dark:bg-black/70 hidden" style="backdrop-filter:blur(2px);">
+      <div id="stock-modal" class="relative w-[90vw] max-w-5xl h-[90vh] max-h-[900px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden shadow-2xl">
+        <div class="shrink-0 flex items-center justify-between px-4 py-2 border-b border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-900/95">
+          <div id="modal-header-info" class="flex items-center gap-3 min-w-0"><span class="text-lg font-bold text-gray-900 dark:text-slate-100">載入中...</span></div>
           <div class="flex items-center gap-2 shrink-0">
-             <button id="modal-btn-cmoney" title="股市同學會" class="hidden text-xs px-2 py-1 rounded bg-slate-700 dark:bg-slate-200 hover:bg-slate-600 dark:hover:bg-slate-300 text-slate-400 dark:text-gray-600 hover:text-slate-200 dark:hover:text-gray-700 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>同學會</button>
-             <button id="modal-btn-google" title="Google 搜尋" class="hidden text-xs px-2 py-1 rounded bg-slate-700 dark:bg-slate-200 hover:bg-slate-600 dark:hover:bg-slate-300 text-slate-400 dark:text-gray-600 hover:text-slate-200 dark:hover:text-gray-700 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>做什麼</button>
-            <button id="modal-close-btn" class="ml-2 text-slate-400 dark:text-gray-600 hover:text-slate-200 dark:hover:text-gray-700 text-xl leading-none">&times;</button>
+            <div id="modal-btn-watchlist-wrapper" class="relative">
+              <button id="modal-btn-watchlist" title="加入自選" class="watchlist-btn text-xs px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>自選</button>
+              <div id="watchlist-dropdown" class="absolute hidden right-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg rounded py-1 z-[150] w-[220px]" style="top:100%;margin-top:2px;"></div>
+            </div>
+             <button id="modal-btn-cmoney" title="股市同學會" class="hidden text-xs px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>同學會</button>
+             <button id="modal-btn-google" title="Google 搜尋" class="hidden text-xs px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>做什麼</button>
+            <button id="modal-close-btn" class="ml-2 text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 text-xl leading-none">&times;</button>
           </div>
         </div>
         <div class="shrink-0 px-3 pt-2 pb-0" style="height:45%;min-height:280px;">
           <div id="kline-container" class="w-full h-full"></div>
         </div>
-          <div id="chart-controls" class="shrink-0 flex items-center px-3 py-1 gap-2 border-b border-slate-700 dark:border-slate-200" style="min-height:38px;">
-          <div id="hover-legend" class="flex-1 min-w-0 overflow-hidden flex flex-col justify-center text-slate-300 dark:text-gray-600" style="font-size:11px;font-family:monospace;line-height:1.25;">
+          <div id="chart-controls" class="shrink-0 flex items-center px-3 py-1 gap-2 border-b border-slate-200 dark:border-slate-700" style="min-height:38px;">
+          <div id="hover-legend" class="flex-1 min-w-0 overflow-hidden flex flex-col justify-center text-gray-600 dark:text-slate-300" style="font-size:11px;font-family:monospace;line-height:1.25;">
             <div id="hover-legend-line1" style="white-space:nowrap;"></div>
             <div id="hover-legend-line2" style="white-space:nowrap;"></div>
           </div>
           <span id="ma-checkboxes" class="inline-flex flex-wrap items-center gap-1.5 shrink-0">${maCapsules}</span>
-          <div class="flex rounded bg-slate-700 dark:bg-slate-200 p-0.5 shrink-0">
-            <button id="mode-btn-ma" class="px-2 py-0.5 rounded bg-slate-600 dark:bg-slate-300 text-slate-200 dark:text-gray-800" style="font-size:11px;">MA</button>
-            <button id="mode-btn-bb" class="px-2 py-0.5 rounded text-slate-400 dark:text-gray-600" style="font-size:11px;">BB</button>
+          <div class="flex rounded bg-slate-200 dark:bg-slate-700 p-0.5 shrink-0">
+            <button id="mode-btn-ma" class="px-2 py-0.5 rounded bg-slate-300 dark:bg-slate-600 text-gray-800 dark:text-slate-200" style="font-size:11px;">MA</button>
+            <button id="mode-btn-bb" class="px-2 py-0.5 rounded text-gray-600 dark:text-slate-400" style="font-size:11px;">BB</button>
           </div>
         </div>
-        <div class="shrink-0 flex border-b border-slate-700 dark:border-slate-200">
-          <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-emerald-500 text-emerald-500 dark:text-emerald-600" data-subtab="institutional">法人買賣超</button>
-          <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-400 dark:text-gray-600 hover:text-slate-300 dark:hover:text-gray-700" data-subtab="margin">融資融券餘額</button>
-          <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-slate-400 dark:text-gray-600 hover:text-slate-300 dark:hover:text-gray-700" data-subtab="tdcc">集保股權分布</button>
+        <div class="shrink-0 flex border-b border-slate-200 dark:border-slate-700">
+          <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-emerald-500 text-emerald-600 dark:text-emerald-500" data-subtab="institutional">法人買賣超</button>
+          <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300" data-subtab="margin">融資融券餘額</button>
+          <button class="sub-tab-btn px-3 py-1.5 text-xs font-medium border-b-2 border-transparent text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300" data-subtab="tdcc">集保股權分布</button>
         </div>
-        <div class="flex-1 min-h-0 px-3 py-2"><div id="subchart-container" class="w-full h-full relative"><div class="absolute inset-0 flex items-center justify-center text-slate-600 dark:text-gray-600 text-xs">選取頁籤以檢視圖表</div></div></div>
+        <div class="flex-1 min-h-0 px-3 py-2"><div id="subchart-container" class="w-full h-full relative"><div class="absolute inset-0 flex items-center justify-center text-gray-600 dark:text-slate-600 text-xs">選取頁籤以檢視圖表</div></div></div>
       </div>
     </div>`;
     const wrapper = document.createElement('div');
@@ -141,6 +150,8 @@ window.StockModal = (() => {
     els.hoverLegendLine1 = document.getElementById('hover-legend-line1');
     els.hoverLegendLine2 = document.getElementById('hover-legend-line2');
     els.chartControls = document.getElementById('chart-controls');
+    els.btnWatchlist = document.getElementById('modal-btn-watchlist');
+    els.watchlistDropdown = document.getElementById('watchlist-dropdown');
   }
 
   /** Format a number for hover legend display */
@@ -162,11 +173,11 @@ window.StockModal = (() => {
     const fmtDate = dateStr.length === 8 ? dateStr.slice(0, 4) + '-' + dateStr.slice(4, 6) + '-' + dateStr.slice(6, 8) : dateStr;
     // 使用 Tailwind class 取代 inline style color
     let line1 = `<span class="text-slate-500 dark:text-slate-400">${fmtDate}</span> `;
-    line1 += `<span class="text-slate-500 dark:text-slate-400">開: </span><span class="text-slate-200 dark:text-gray-800">${fmtNum(bar.open)}</span> `;
-    line1 += `<span class="text-slate-500 dark:text-slate-400">高: </span><span class="text-slate-200 dark:text-gray-800">${fmtNum(bar.high)}</span> `;
-    line1 += `<span class="text-slate-500 dark:text-slate-400">低: </span><span class="text-slate-200 dark:text-gray-800">${fmtNum(bar.low)}</span> `;
-    line1 += `<span class="text-slate-500 dark:text-slate-400">收: </span><span class="text-slate-200 dark:text-gray-800">${fmtNum(bar.close)}</span> `;
-    line1 += `<span class="text-slate-500 dark:text-slate-400">量: </span><span class="text-slate-200 dark:text-gray-800">${bar.volume != null ? Math.round(bar.volume / 1000).toLocaleString() : '—'}</span>`;
+    line1 += `<span class="text-slate-500 dark:text-slate-400">開: </span><span class="text-gray-800 dark:text-slate-200">${fmtNum(bar.open)}</span> `;
+    line1 += `<span class="text-slate-500 dark:text-slate-400">高: </span><span class="text-gray-800 dark:text-slate-200">${fmtNum(bar.high)}</span> `;
+    line1 += `<span class="text-slate-500 dark:text-slate-400">低: </span><span class="text-gray-800 dark:text-slate-200">${fmtNum(bar.low)}</span> `;
+    line1 += `<span class="text-slate-500 dark:text-slate-400">收: </span><span class="text-gray-800 dark:text-slate-200">${fmtNum(bar.close)}</span> `;
+    line1 += `<span class="text-slate-500 dark:text-slate-400">量: </span><span class="text-gray-800 dark:text-slate-200">${bar.volume != null ? Math.round(bar.volume / 1000).toLocaleString() : '—'}</span>`;
     let line2 = '';
     if (mode === 'ma') {
       els.maToggles.forEach(btn => {
@@ -175,18 +186,18 @@ window.StockModal = (() => {
         const v = bar[key];
         if (v != null) {
           const col = (isDarkMode() ? MA_COLORS : MA_COLORS_LIGHT)[key] || '#94a3b8';
-          line2 += ` <span style="color:${col};">${key.toUpperCase()}: </span><span class="text-slate-200 dark:text-gray-800">${fmtNum(v)}</span>`;
+          line2 += ` <span style="color:${col};">${key.toUpperCase()}: </span><span class="text-gray-800 dark:text-slate-200">${fmtNum(v)}</span>`;
         }
       });
     } else {
       if (bar.bband_upper != null) {
-        line2 += ` <span style="color:#a78bfa;">上: </span><span class="text-slate-200 dark:text-gray-800">${fmtNum(bar.bband_upper)}</span>`;
+        line2 += ` <span style="color:#a78bfa;">上: </span><span class="text-gray-800 dark:text-slate-200">${fmtNum(bar.bband_upper)}</span>`;
       }
       if (bar.ma20 != null) {
-        line2 += ` <span style="color:#8b5cf6;">中: </span><span class="text-slate-200 dark:text-gray-800">${fmtNum(bar.ma20)}</span>`;
+        line2 += ` <span style="color:#8b5cf6;">中: </span><span class="text-gray-800 dark:text-slate-200">${fmtNum(bar.ma20)}</span>`;
       }
       if (bar.bband_lower != null) {
-        line2 += ` <span style="color:#a78bfa;">下: </span><span class="text-slate-200 dark:text-gray-800">${fmtNum(bar.bband_lower)}</span>`;
+        line2 += ` <span style="color:#a78bfa;">下: </span><span class="text-gray-800 dark:text-slate-200">${fmtNum(bar.bband_lower)}</span>`;
       }
     }
     el1.innerHTML = line1;
@@ -196,8 +207,8 @@ window.StockModal = (() => {
   function updateModeUI() {
     if (!els.btnModeMa || !els.btnModeBb) return;
     const isMA = currentMode === 'ma';
-    els.btnModeMa.className = isMA ? 'px-2 py-0.5 rounded bg-slate-700 dark:bg-gray-200 text-slate-200 dark:text-gray-800' : 'px-2 py-0.5 rounded text-slate-500 dark:text-gray-400';
-    els.btnModeBb.className = isMA ? 'px-2 py-0.5 rounded text-slate-500 dark:text-gray-400' : 'px-2 py-0.5 rounded bg-slate-700 dark:bg-gray-200 text-slate-200 dark:text-gray-800';
+    els.btnModeMa.className = isMA ? 'px-2 py-0.5 rounded bg-slate-300 dark:bg-gray-200 text-gray-800 dark:text-gray-800' : 'px-2 py-0.5 rounded text-gray-500 dark:text-gray-400';
+    els.btnModeBb.className = isMA ? 'px-2 py-0.5 rounded text-gray-500 dark:text-gray-400' : 'px-2 py-0.5 rounded bg-slate-300 dark:bg-gray-200 text-gray-800 dark:text-gray-800';
     // 隱藏/顯示 MA 膠囊按鈕容器
     if (els.maCheckboxes) {
       els.maCheckboxes.style.display = isMA ? '' : 'none';
@@ -226,6 +237,185 @@ window.StockModal = (() => {
     }
   }
 
+  // ── Watchlist helpers ──
+
+  function getWatchlistStore() {
+    return (typeof window !== 'undefined' && window.WatchlistStore) ? window.WatchlistStore : null;
+  }
+
+  function renderWatchlistDropdown() {
+    const dd = els.watchlistDropdown;
+    if (!dd) return;
+    const store = getWatchlistStore();
+    if (!store) { dd.innerHTML = ''; dd.classList.add('hidden'); return; }
+    const allLists = store.getAllLists();
+    const listNames = Object.keys(allLists);
+    if (!listNames.length) { dd.innerHTML = ''; dd.classList.add('hidden'); return; }
+    const sid = currentStockId;
+    let html = '';
+    for (const name of listNames) {
+      const checked = sid ? store.isInList(name, sid) : false;
+      html += `<label class="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"><input type="checkbox" class="watchlist-cb w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-600 text-emerald-600 dark:text-emerald-500 focus:ring-emerald-500" data-list="${name}" ${checked ? 'checked' : ''}> ${name}</label>`;
+    }
+    html += `<button id="watchlist-new-btn" class="flex items-center gap-2 w-full text-left text-xs text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 border-t border-slate-200 dark:border-slate-700 mt-1 pt-1.5 pb-1 px-3 hover:bg-slate-100 dark:hover:bg-slate-800"><span class="inline-flex items-center justify-center w-3.5 h-3.5"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>新建清單</button>`;
+    dd.innerHTML = html;
+
+    // bind checkboxes
+    dd.querySelectorAll('.watchlist-cb').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const listName = cb.dataset.list;
+        if (!store || !listName || !sid) return;
+        if (cb.checked) {
+          store.addToList(listName, sid);
+        } else {
+          store.removeFromList(listName, sid);
+        }
+        // updateWatchlistButton will be called by watchlistchange event handler
+      });
+    });
+
+    // 輔助：在下拉內重建「+ 新建清單」button 並綁定事件
+    const bindCreateBtn = (container) => {
+      const btn = container.querySelector('#watchlist-new-btn');
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        if (!store || !sid) return;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'flex flex-col gap-1.5 px-3 py-1.5 border-t border-slate-200 dark:border-slate-700 mt-1';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.maxLength = 20;
+        input.placeholder = '新清單名稱';
+        input.className = 'w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded text-xs text-gray-800 dark:text-slate-200 px-2 py-0.5 outline-none focus:border-emerald-600 dark:focus:border-emerald-500';
+        const btnRow = document.createElement('div');
+        btnRow.className = 'flex items-center justify-end gap-1';
+        const confirmBtn = document.createElement('button');
+        confirmBtn.textContent = '確認';
+        confirmBtn.className = 'text-xs px-2 py-0.5 rounded bg-emerald-700 dark:bg-emerald-600 text-white dark:text-white hover:bg-emerald-600 dark:hover:bg-emerald-500 whitespace-nowrap';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = '取消';
+        cancelBtn.className = 'text-xs px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-600 text-gray-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-500 whitespace-nowrap';
+        btnRow.appendChild(confirmBtn);
+        btnRow.appendChild(cancelBtn);
+        const errEl = document.createElement('div');
+        errEl.id = 'watchlist-create-error';
+        errEl.className = 'hidden text-[11px] leading-tight text-rose-600 dark:text-rose-500 mt-1';
+        errEl.textContent = '';
+        wrapper.appendChild(input);
+        wrapper.appendChild(btnRow);
+        wrapper.appendChild(errEl);
+        btn.replaceWith(wrapper);
+        input.focus();
+
+        let errTimer = null;
+        const showError = (msg) => {
+          clearTimeout(errTimer);
+          errEl.textContent = msg;
+          errEl.classList.remove('hidden');
+          errTimer = setTimeout(() => { errEl.textContent = ''; errEl.classList.add('hidden'); }, 3000);
+        };
+        const clearError = () => {
+          clearTimeout(errTimer);
+          errEl.textContent = '';
+          errEl.classList.add('hidden');
+        };
+
+        const commit = () => {
+          const name = input.value.trim();
+          if (!name) { cancel(); return; }
+          const ok = store.createList(name);
+          if (!ok) {
+            showError('建立失敗：名稱可能重複、過長或為純數字。');
+            input.focus();
+            return;
+          }
+          store.addToList(name, sid);
+          renderWatchlistDropdown();
+        };
+        const cancel = () => {
+          clearError();
+          const restoreBtn = document.createElement('button');
+          restoreBtn.id = 'watchlist-new-btn';
+          restoreBtn.className = 'flex items-center gap-2 w-full text-left text-xs text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 border-t border-slate-200 dark:border-slate-700 mt-1 pt-1.5 pb-1 px-3 hover:bg-slate-100 dark:hover:bg-slate-800';
+          restoreBtn.innerHTML = '<span class="inline-flex items-center justify-center w-3.5 h-3.5"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>新建清單';
+          wrapper.replaceWith(restoreBtn);
+          bindCreateBtn(container);
+        };
+        confirmBtn.addEventListener('click', commit);
+        cancelBtn.addEventListener('click', cancel);
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel(); });
+      });
+    };
+    bindCreateBtn(dd);
+  }
+
+  function updateWatchlistButton() {
+    const btn = els.btnWatchlist;
+    if (!btn) return;
+    const svg = btn.querySelector('svg');
+    const store = getWatchlistStore();
+    const sid = currentStockId;
+
+    // 移除所有動態管理的顏色 class（文字色、hover 文字色、hover 背景色）
+    btn.classList.remove(
+      'text-slate-400', 'dark:text-gray-600', 'hover:text-slate-200', 'dark:hover:text-gray-700',
+      'text-slate-500', 'dark:text-slate-400',
+      'text-rose-500', 'dark:text-rose-600', 'hover:text-rose-400', 'dark:hover:text-rose-500', 'hover:text-rose-600', 'dark:hover:text-rose-700',
+      'text-emerald-500', 'dark:text-emerald-600',
+      'hover:bg-slate-600', 'dark:hover:bg-slate-300'
+    );
+
+    if (!store || !sid) {
+      if (svg) svg.setAttribute('fill', 'none');
+      return;
+    }
+
+    if (_dropdownOpen) {
+      // 下拉選單開啟中：凍結所有 hover（無任何 hover 偽類，無背景 hover）
+      if (store.isStockInAnyList(sid)) {
+        btn.classList.add('text-rose-500', 'dark:text-rose-600');
+        if (svg) svg.setAttribute('fill', 'currentColor');
+      } else {
+        btn.classList.add('text-slate-400', 'dark:text-gray-600');
+        if (svg) svg.setAttribute('fill', 'none');
+      }
+    } else if (store.isStockInAnyList(sid)) {
+      // 已收藏 + 正常狀態：底色 hover 一致於同學會，rose 加深而非變淺
+      btn.classList.add('text-rose-500', 'dark:text-rose-600', 'hover:text-rose-600', 'dark:hover:text-rose-700', 'hover:bg-slate-600', 'dark:hover:bg-slate-300');
+      if (svg) svg.setAttribute('fill', 'currentColor');
+    } else {
+      // 未收藏 + 正常狀態：灰色空心含文字 hover 與背景 hover（與同學會按鈕一致）
+      btn.classList.add('text-slate-400', 'dark:text-gray-600', 'hover:text-slate-200', 'dark:hover:text-gray-700', 'hover:bg-slate-600', 'dark:hover:bg-slate-300');
+      if (svg) svg.setAttribute('fill', 'none');
+    }
+  }
+
+  function toggleWatchlistDropdown() {
+    const dd = els.watchlistDropdown;
+    if (!dd) return;
+    if (dd.classList.contains('hidden')) {
+      renderWatchlistDropdown();
+      dd.classList.remove('hidden');
+      _dropdownOpen = true;
+      updateWatchlistButton();
+    } else {
+      dd.classList.add('hidden');
+      _dropdownOpen = false;
+      updateWatchlistButton();
+    }
+  }
+
+  function closeWatchlistDropdown() {
+    const dd = els.watchlistDropdown;
+    if (dd) {
+      dd.classList.add('hidden');
+      _dropdownOpen = false;
+      updateWatchlistButton();
+    }
+  }
+
+  // ── End watchlist helpers ──
+
   function bindEvents() {
     els.closeBtn.addEventListener('click', closeModal);
     let mouseDownOnOverlay = false;
@@ -235,6 +425,35 @@ window.StockModal = (() => {
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
     if (els.btnModeMa) els.btnModeMa.addEventListener('click', () => { currentMode = 'ma'; updateModeUI(); });
     if (els.btnModeBb) els.btnModeBb.addEventListener('click', () => { currentMode = 'bb'; updateModeUI(); });
+
+    // ── Watchlist events ──
+    if (els.btnWatchlist) {
+      els.btnWatchlist.addEventListener('click', e => {
+        e.stopPropagation();
+        toggleWatchlistDropdown();
+      });
+    }
+
+    // close dropdown when clicking outside
+    outsideClickHandler = function(e) {
+      if (els.watchlistDropdown && !els.watchlistDropdown.classList.contains('hidden')) {
+        const wrapper = document.getElementById('modal-btn-watchlist-wrapper');
+        if (wrapper && !wrapper.contains(e.target)) {
+          closeWatchlistDropdown();
+        }
+      }
+    };
+    document.addEventListener('click', outsideClickHandler, true);
+
+    // listen to watchlist changes from other tabs/windows
+    watchlistChangeHandler = function() {
+      if (currentStockId) {
+        renderWatchlistDropdown();
+        updateWatchlistButton();
+      }
+    };
+    window.addEventListener('watchlistchange', watchlistChangeHandler);
+
     els.maToggles.forEach(btn => {
       btn.addEventListener('click', e => {
         const b = e.currentTarget;
@@ -269,9 +488,9 @@ window.StockModal = (() => {
     });
     els.subTabBtns.forEach(btn => {
       btn.addEventListener('click', () => {
-        els.subTabBtns.forEach(b => { b.classList.remove('border-emerald-500', 'text-emerald-500', 'dark:text-emerald-600'); b.classList.add('border-transparent', 'text-slate-400', 'dark:text-gray-600'); });
-        btn.classList.remove('border-transparent', 'text-slate-400', 'dark:text-gray-600');
-        btn.classList.add('border-emerald-500', 'text-emerald-500', 'dark:text-emerald-600');
+        els.subTabBtns.forEach(b => { b.classList.remove('border-emerald-500', 'text-emerald-600', 'dark:text-emerald-500'); b.classList.add('border-transparent', 'text-gray-600', 'dark:text-slate-400'); });
+        btn.classList.remove('border-transparent', 'text-gray-600', 'dark:text-slate-400');
+        btn.classList.add('border-emerald-500', 'text-emerald-600', 'dark:text-emerald-500');
         renderSubTab(btn.dataset.subtab);
       });
     });
@@ -280,7 +499,8 @@ window.StockModal = (() => {
 
     // ── Theme change listener ──
     window.addEventListener('themechange', () => {
-      applyLwcTheme();       // 更新圖表背景、網格、文字顏色 + MA 色彩
+      applyLwcTheme();       // 更新 Lightweight Charts 圖表背景、網格、文字 + MA 色彩 (若 lwcChart 存在)
+      applyMAColors();       // 無論圖表存在與否，都更新 MA 膠囊按鈕 active/inactive 顏色
       updateModeUI();         // 重新套用 MA/BB 模式的可見性狀態
       applyChartJsTheme();   // 更新 Chart.js 顏色（若有 Chart.js）
     });
@@ -377,11 +597,12 @@ window.StockModal = (() => {
     if (!stockId) return;
     currentStockId = stockId;
     els.overlay.classList.remove('hidden');
-    els.headerInfo.innerHTML = `<span class="text-lg font-bold text-slate-100 dark:text-gray-900">${stockId}</span><span class="text-slate-600 dark:text-gray-400 text-xs ml-2">載入中...</span>`;
+    els.headerInfo.innerHTML = `<span class="text-lg font-bold text-gray-900 dark:text-slate-100">${stockId}</span><span class="text-gray-400 dark:text-slate-600 text-xs ml-2">載入中...</span>`;
     els.btnCmoney.classList.add('hidden');
     els.btnGoogle.classList.add('hidden');
+    closeWatchlistDropdown();
     cleanupCharts();
-    els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-slate-700 dark:text-gray-400 text-xs">載入中...</div>';
+    els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-gray-400 dark:text-slate-700 text-xs">載入中...</div>';
     try {
       const r = await fetch(`./api/stock/${stockId}.json`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -389,20 +610,30 @@ window.StockModal = (() => {
       renderHeader(data);
       renderCandlestick(data.price || []);
       updateModeUI();  // 同步按鈕與圖表狀態（保留上次關閉時的模式選擇）
-      els.subTabBtns.forEach(b => { b.classList.remove('border-emerald-500', 'text-emerald-500', 'dark:text-emerald-600'); b.classList.add('border-transparent', 'text-slate-400', 'dark:text-gray-600'); });
+      els.subTabBtns.forEach(b => { b.classList.remove('border-emerald-500', 'text-emerald-600', 'dark:text-emerald-500'); b.classList.add('border-transparent', 'text-gray-600', 'dark:text-slate-400'); });
       const ft = els.subTabBtns[0];
-      if (ft) { ft.classList.remove('border-transparent', 'text-slate-400', 'dark:text-gray-600'); ft.classList.add('border-emerald-500', 'text-emerald-500', 'dark:text-emerald-600'); }
+      if (ft) { ft.classList.remove('border-transparent', 'text-gray-600', 'dark:text-slate-400'); ft.classList.add('border-emerald-500', 'text-emerald-600', 'dark:text-emerald-500'); }
       renderSubTab('institutional');
+
+      // ── update watchlist UI after data loaded ──
+      renderWatchlistDropdown();
+      updateWatchlistButton();
     } catch (e) {
       console.error('[StockModal]', e);
-      els.headerInfo.innerHTML = `<span class="text-lg font-bold text-rose-500 dark:text-rose-600">${stockId}</span><span class="text-rose-700 dark:text-rose-500 text-xs ml-2">載入失敗</span>`;
-      els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-rose-800 dark:text-rose-500 text-xs">載入失敗</div>';
+      els.headerInfo.innerHTML = `<span class="text-lg font-bold text-rose-600 dark:text-rose-500">${stockId}</span><span class="text-rose-700 dark:text-rose-500 text-xs ml-2">載入失敗</span>`;
+      els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-rose-700 dark:text-rose-500 text-xs">載入失敗</div>';
       els.btnCmoney.classList.remove('hidden');
       els.btnGoogle.classList.remove('hidden');
+      updateWatchlistButton();
     }
   }
 
-  function closeModal() { els.overlay.classList.add('hidden'); cleanupCharts(); currentStockId = null; }
+  function closeModal() {
+    els.overlay.classList.add('hidden');
+    closeWatchlistDropdown();
+    cleanupCharts();
+    currentStockId = null;
+  }
 
   function cleanupCharts() {
     if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null; }
@@ -424,16 +655,16 @@ window.StockModal = (() => {
     const arr = data.price || [];
     const name = data.stock_name || '';
     const industry = data.industry || '';
-    const industryBadge = industry ? `<span class="text-2xs text-slate-200 dark:text-gray-700 ml-2">${industry}</span>` : '';
-    if (!arr.length) { els.headerInfo.innerHTML = `<span class="text-lg font-bold text-slate-100 dark:text-gray-900">${currentStockId}</span><span class="text-sm text-slate-400 dark:text-gray-500 ml-2">${name}${industryBadge}</span><span class="text-slate-600 dark:text-gray-400 text-xs ml-4">暫無價量資料</span>`; els.btnCmoney.classList.remove('hidden'); els.btnGoogle.classList.remove('hidden'); return; }
+    const industryBadge = industry ? `<span class="text-2xs text-gray-700 dark:text-slate-200 ml-2">${industry}</span>` : '';
+    if (!arr.length) { els.headerInfo.innerHTML = `<span class="text-lg font-bold text-gray-900 dark:text-slate-100">${currentStockId}</span><span class="text-sm text-gray-500 dark:text-slate-400 ml-2">${name}${industryBadge}</span><span class="text-gray-400 dark:text-slate-600 text-xs ml-4">暫無價量資料</span>`; els.btnCmoney.classList.remove('hidden'); els.btnGoogle.classList.remove('hidden'); return; }
     const last = arr[arr.length - 1], prev = arr.length >= 2 ? arr[arr.length - 2] : null;
     const close = last.close;
     let ch = null, chPct = null;
     if (prev && prev.close != null) { ch = close - prev.close; chPct = (ch / prev.close) * 100; }
-    const cc = ch > 0 ? 'text-rose-500 dark:text-rose-600' : ch < 0 ? 'text-emerald-500 dark:text-emerald-600' : 'text-slate-400 dark:text-gray-500';
+    const cc = ch > 0 ? 'text-rose-600 dark:text-rose-500' : ch < 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-gray-500 dark:text-slate-400';
     const ar = ch > 0 ? '▲' : ch < 0 ? '▼' : '—';
     const disp = close != null ? close.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--';
-    els.headerInfo.innerHTML = `<span class="text-lg font-bold text-slate-100 dark:text-gray-900">${currentStockId}</span><span class="text-sm text-slate-400 dark:text-gray-500 ml-2">${name}${industryBadge}</span><span class="text-lg font-mono font-bold text-slate-100 dark:text-gray-900 ml-4">${disp}</span>${ch != null ? `<span class="text-sm font-mono font-semibold ${cc} ml-2">${ar} ${ch >= 0 ? '+' : ''}${ch.toFixed(2)} (${chPct >= 0 ? '+' : ''}${chPct.toFixed(2)}%)</span>` : ''}`;
+    els.headerInfo.innerHTML = `<span class="text-lg font-bold text-gray-900 dark:text-slate-100">${currentStockId}</span><span class="text-sm text-gray-500 dark:text-slate-400 ml-2">${name}${industryBadge}</span><span class="text-lg font-mono font-bold text-gray-900 dark:text-slate-100 ml-4">${disp}</span>${ch != null ? `<span class="text-sm font-mono font-semibold ${cc} ml-2">${ar} ${ch >= 0 ? '+' : ''}${ch.toFixed(2)} (${chPct >= 0 ? '+' : ''}${chPct.toFixed(2)}%)</span>` : ''}`;
     els.btnCmoney.classList.remove('hidden');
     els.btnGoogle.classList.remove('hidden');
   }
@@ -453,13 +684,13 @@ window.StockModal = (() => {
     };
 
     if (!priceArr || !priceArr.length) { 
-      els.klineContainer.innerHTML = '<div class="w-full h-full flex items-center justify-center text-slate-700 dark:text-gray-400 text-xs">無價量資料</div>'; 
+      els.klineContainer.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-slate-600 text-xs">無價量資料</div>'; 
       lockControls(); 
       return; 
     }
     const validPrice = priceArr.filter(p => p.open != null && p.high != null && p.low != null && p.close != null);
     if (!validPrice.length) { 
-      els.klineContainer.innerHTML = '<div class="w-full h-full flex items-center justify-center text-slate-700 dark:text-gray-400 text-xs">無有效價量資料</div>'; 
+      els.klineContainer.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-slate-600 text-xs">無有效價量資料</div>'; 
       lockControls(); 
       return; 
     }
@@ -571,11 +802,11 @@ window.StockModal = (() => {
       if (tab === 'institutional') renderInstitutional(data.institutional || []);
       else if (tab === 'margin') renderMargin(data.margin || []);
       else if (tab === 'tdcc') { chartJsType = null; renderTdccPyramid(data.tdcc || []); }
-    }).catch(() => { els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-rose-800 dark:text-rose-500 text-xs">載入失敗</div>'; });
+    }).catch(() => { els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-rose-600 dark:text-rose-500 text-xs">載入失敗</div>'; });
   }
 
   function renderInstitutional(data) {
-    if (!data || !data.length) { els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-slate-700 dark:text-gray-400 text-xs">無法人買賣超資料</div>'; return; }
+    if (!data || !data.length) { els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-gray-400 dark:text-slate-600 text-xs">無法人買賣超資料</div>'; return; }
     const canvas = document.createElement('canvas');
     els.subchartContainer.innerHTML = '';
     els.subchartContainer.appendChild(canvas);
@@ -597,7 +828,7 @@ window.StockModal = (() => {
   }
 
   function renderMargin(data) {
-    if (!data || !data.length) { els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-slate-700 dark:text-gray-400 text-xs">無融資券資料</div>'; return; }
+    if (!data || !data.length) { els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-gray-400 dark:text-slate-600 text-xs">無融資券資料</div>'; return; }
     const canvas = document.createElement('canvas');
     els.subchartContainer.innerHTML = '';
     els.subchartContainer.appendChild(canvas);
@@ -629,7 +860,7 @@ window.StockModal = (() => {
   }
 
   function renderTdccPyramid(data) {
-    if (!data || !data.length) { els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-slate-700 dark:text-gray-400 text-xs">無集保資料</div>'; return; }
+    if (!data || !data.length) { els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-gray-400 dark:text-slate-600 text-xs">無集保資料</div>'; return; }
 
     let selectedIndex = data.length - 1;
 
@@ -644,7 +875,7 @@ window.StockModal = (() => {
     btnPrev.className = 'border border-slate-700 dark:border-slate-300 text-slate-400 dark:text-slate-500 rounded';
     btnPrev.style.cssText = 'background:none;border-radius:4px;width:28px;height:24px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0;';
     const spanDate = document.createElement('span');
-    spanDate.className = 'text-slate-300 dark:text-slate-700 font-semibold';
+    spanDate.className = 'text-slate-700 dark:text-slate-300 font-semibold';
     spanDate.style.cssText = 'font-size:12px;font-weight:600;min-width:80px;text-align:center;';
     const btnNext = document.createElement('button');
     btnNext.textContent = '▶';
@@ -678,7 +909,7 @@ window.StockModal = (() => {
       btnNext.style.opacity = selectedIndex >= data.length - 1 ? '0.3' : '1';
 
       let levels = [...(cur.levels || [])];
-      if (!levels.length) { chartDiv.innerHTML = '<div class="text-slate-700 dark:text-gray-400 text-xs text-center py-4">無持股分級資料</div>'; return; }
+      if (!levels.length) { chartDiv.innerHTML = '<div class="text-gray-400 dark:text-slate-600 text-xs text-center py-4">無持股分級資料</div>'; return; }
       levels = levels.reverse();
 
       const maxCount = Math.max(...levels.map(l => l.count || 0), 1);
@@ -748,7 +979,7 @@ window.StockModal = (() => {
 
         // 中：級距
         const midCol = document.createElement('div');
-        midCol.className = 'text-slate-300 dark:text-slate-700';
+        midCol.className = 'text-slate-700 dark:text-slate-300';
         midCol.style.cssText =
           'flex:0 0 auto;width:90px;text-align:center;font-size:11px;' +
           'padding:0 3px;white-space:nowrap;';

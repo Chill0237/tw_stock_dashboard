@@ -15,8 +15,8 @@ window.WatchlistStore = (() => {
 
   const DEFAULT_DATA = {
     lists: {
-      "預設自選": ["2330", "2317"],
-      "長線觀察": ["2603"]
+      "預設自選": [],
+      "長線觀察": []
     },
     active_list: "預設自選"
   };
