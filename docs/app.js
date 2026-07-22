@@ -205,7 +205,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const cfg = METRIC_CONFIGS[metricKey];
-        const colorClass = cfg.isBuy ? "text-emerald-600 dark:text-emerald-500" : "text-rose-500 dark:text-rose-500";
+        const colorClass = cfg.isBuy ? "text-rose-600 dark:text-rose-500" : "text-emerald-500 dark:text-emerald-500";
 
         data.forEach(item => {
             const tr = document.createElement("tr");
@@ -223,8 +223,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
             tr.innerHTML = `
                 <td class="py-2 pr-1 truncate">
-                    <span class="text-2xs text-slate-200 dark:text-slate-600">${stockId}</span>
-                    <span class="text-xs text-slate-200 dark:text-slate-300 ml-1">${stockName}</span>
+                    <span class="text-2xs text-slate-800 dark:text-slate-200">${stockId}</span>
+                    <span class="text-xs text-slate-800 dark:text-slate-200 ml-1">${stockName}</span>
                 </td>
                 <td class="py-2 text-right font-mono text-slate-400 dark:text-slate-500 text-xs">${displayPrice}</td>
                 <td class="py-2 text-right font-mono font-semibold text-xs ${colorClass}">${displayVal}</td>
@@ -497,16 +497,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 ? Number(r.volume).toLocaleString(undefined, { maximumFractionDigits: 0 })
                 : "--";
 
-            const changeCls = (r.change != null) ? (r.change > 0 ? "text-emerald-500" : r.change < 0 ? "text-rose-500" : "text-slate-500") : "text-slate-500";
-            const pctCls = (r.change_pct != null) ? (r.change_pct > 0 ? "text-emerald-500" : r.change_pct < 0 ? "text-rose-500" : "text-slate-500") : "text-slate-500";
+            const changeCls = (r.change != null) ? (r.change > 0 ? "text-rose-500" : r.change < 0 ? "text-emerald-500" : "text-slate-500") : "text-slate-500";
+            const pctCls = (r.change_pct != null) ? (r.change_pct > 0 ? "text-rose-500" : r.change_pct < 0 ? "text-emerald-500" : "text-slate-500") : "text-slate-500";
 
             const tr = document.createElement("tr");
             tr.className = "hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer";
             tr.dataset.stockId = r.stock_id;
             tr.innerHTML = `
-                <td class="py-2 px-2 text-slate-200 dark:text-slate-500 font-mono">${r.stock_id}</td>
-                <td class="py-2 px-2 text-slate-200 dark:text-slate-300">${r.stock_name}</td>
-                <td class="py-2 px-2 text-right font-mono text-slate-200 dark:text-slate-300">${closeStr}</td>
+                <td class="py-2 px-2 text-slate-800 dark:text-slate-300 font-mono">${r.stock_id}</td>
+                <td class="py-2 px-2 text-slate-800 dark:text-slate-200">${r.stock_name}</td>
+                <td class="py-2 px-2 text-right font-mono text-slate-800 dark:text-slate-200">${closeStr}</td>
                 <td class="py-2 px-2 text-right font-mono ${changeCls}">${changeStr}</td>
                 <td class="py-2 px-2 text-right font-mono ${pctCls}">${pctStr}</td>
                 <td class="py-2 px-2 text-right font-mono text-slate-400 dark:text-slate-500">${volStr}</td>

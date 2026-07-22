@@ -358,7 +358,7 @@ window.StockModal = (() => {
 
     // 移除所有動態管理的顏色 class（文字色、hover 文字色、hover 背景色）
     btn.classList.remove(
-      'text-slate-400', 'dark:text-gray-600', 'hover:text-slate-200', 'dark:hover:text-gray-700',
+      'text-slate-400', 'dark:text-gray-600', 'hover:text-gray-700', 'dark:hover:text-slate-200',
       'text-slate-500', 'dark:text-slate-400',
       'text-rose-500', 'dark:text-rose-600', 'hover:text-rose-400', 'dark:hover:text-rose-500', 'hover:text-rose-600', 'dark:hover:text-rose-700',
       'text-emerald-500', 'dark:text-emerald-600',
@@ -385,7 +385,7 @@ window.StockModal = (() => {
       if (svg) svg.setAttribute('fill', 'currentColor');
     } else {
       // 未收藏 + 正常狀態：灰色空心含文字 hover 與背景 hover（與同學會按鈕一致）
-      btn.classList.add('text-slate-400', 'dark:text-gray-600', 'hover:text-slate-200', 'dark:hover:text-gray-700', 'hover:bg-slate-600', 'dark:hover:bg-slate-300');
+      btn.classList.add('text-slate-400', 'dark:text-gray-600', 'hover:text-gray-700', 'dark:hover:text-slate-200', 'hover:bg-slate-600', 'dark:hover:bg-slate-300');
       if (svg) svg.setAttribute('fill', 'none');
     }
   }
