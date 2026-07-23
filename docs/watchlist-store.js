@@ -315,6 +315,40 @@ window.WatchlistStore = (() => {
   }
 
   /**
+   * 重新命名清單
+   * @param {string} oldName - 原始清單名稱
+   * @param {string} newName - 新清單名稱
+   * @returns {boolean} 成功回傳 true，失敗回傳 false
+   */
+  function renameList(oldName, newName) {
+    if (!newName || typeof newName !== 'string' || !newName.trim()) return false;
+    const trimmed = newName.trim();
+
+    if (trimmed.length > 20) return false;
+
+    const data = _load();
+    if (!data.lists[oldName]) return false;
+    if (oldName === trimmed) return false;
+    if (data.lists[trimmed]) return false; // 新名稱已存在
+
+    // 搬移 lists key
+    data.lists[trimmed] = data.lists[oldName];
+    delete data.lists[oldName];
+
+    // 更新 list_order 中的名稱
+    const idx = data.list_order.indexOf(oldName);
+    if (idx !== -1) data.list_order[idx] = trimmed;
+
+    // 更新 active_list（如果需要）
+    if (data.active_list === oldName) {
+      data.active_list = trimmed;
+    }
+
+    _save(data);
+    return true;
+  }
+
+  /**
    * 移動指定清單內個股的順序
    * @param {string} listName - 清單名稱
    * @param {number} fromIndex - 目前索引
@@ -353,6 +387,7 @@ window.WatchlistStore = (() => {
     addToList,
     removeFromList,
     moveList,
+    renameList,
     moveInList
   };
 })();

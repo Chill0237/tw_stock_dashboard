@@ -80,8 +80,8 @@ document.addEventListener("DOMContentLoaded", () => {
             card.innerHTML = `
                 <div class="p-3 border border-slate-200 dark:border-slate-700 h-full flex flex-col bg-white dark:bg-slate-900">
                     <div class="flex justify-between items-baseline mb-2 pb-1 border-b border-slate-200 dark:border-slate-700">
-                        <span class="text-sm font-medium text-slate-600 dark:text-slate-400">${cfg.title}</span>
-                        <span class="text-xs text-slate-400 dark:text-slate-500">${cfg.unit}</span>
+                        <span class="text-sm font-medium text-slate-700 dark:text-slate-400">${cfg.title}</span>
+                        <span class="text-xs text-slate-700 dark:text-slate-400">${cfg.unit}</span>
                     </div>
                     <table class="table-fixed w-full text-xs">
                         <thead>
@@ -92,7 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             </tr>
                         </thead>
                         <tbody id="body-${key}" class="divide-y divide-slate-100 dark:divide-slate-800">
-                            <tr><td colspan="3" class="text-center py-3 text-slate-400 dark:text-slate-500 text-2xs">loading</td></tr>
+                            <tr><td colspan="3" class="text-center py-3 text-slate-700 dark:text-slate-400 text-2xs">loading</td></tr>
                         </tbody>
                     </table>
                 </div>`;
@@ -125,9 +125,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (btn.dataset.tab === "tab-watchlist") {
                     if (_watchlistDirty) {
                         _snapshotCache = null;
-                        const select = document.getElementById("watchlist-select");
                         const ws = window.WatchlistStore;
-                        if (select && ws) populateWatchlistSelect(select, ws);
+                        if (ws) populateWatchlistSelectDropdown(ws);
                         _watchlistDirty = false;
                     }
                     fetchAndRenderWatchlist();
@@ -200,7 +199,7 @@ document.addEventListener("DOMContentLoaded", () => {
         tbody.innerHTML = "";
 
         if (!data || data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="3" class="text-center py-3 text-slate-400 dark:text-slate-500 text-2xs">no signal</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="3" class="text-center py-3 text-slate-700 dark:text-slate-400 text-2xs">no signal</td></tr>`;
             return;
         }
 
@@ -223,10 +222,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
             tr.innerHTML = `
                 <td class="py-2 pr-1 truncate">
-                    <span class="text-2xs text-slate-800 dark:text-slate-200">${stockId}</span>
-                    <span class="text-xs text-slate-800 dark:text-slate-200 ml-1">${stockName}</span>
+                    <span class="text-2xs text-slate-800 dark:text-slate-300">${stockId}</span>
+                    <span class="text-xs text-slate-800 dark:text-slate-300 ml-1">${stockName}</span>
                 </td>
-                <td class="py-2 text-right font-mono text-slate-400 dark:text-slate-500 text-xs">${displayPrice}</td>
+                <td class="py-2 text-right font-mono text-slate-800 dark:text-slate-300 text-xs">${displayPrice}</td>
                 <td class="py-2 text-right font-mono font-semibold text-xs ${colorClass}">${displayVal}</td>
             `;
             tbody.appendChild(tr);
@@ -269,7 +268,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderStatusBar(dataDate, dataStatus) {
         if (!statusBar) return;
         if (!dataDate || !dataStatus) {
-            statusBar.innerHTML = `<span class="text-3xs text-slate-400 dark:text-slate-500">狀態載入中...</span>`;
+            statusBar.innerHTML = `<span class="text-3xs text-slate-700 dark:text-slate-400">狀態載入中...</span>`;
             return;
         }
 
@@ -294,14 +293,14 @@ document.addEventListener("DOMContentLoaded", () => {
             } else {
                 ok = !!dataStatus[item.key];
             }
-            const color = ok ? "text-emerald-600 dark:text-emerald-500" : "text-slate-400 dark:text-slate-500";
+            const color = ok ? "text-emerald-600 dark:text-emerald-500" : "text-slate-700 dark:text-slate-400";
             const dot = `<span class="${color}">●</span>`;
-            const extraHtml = extra ? `<span class="text-slate-400 dark:text-slate-500">${extra}</span>` : "";
+            const extraHtml = extra ? `<span class="text-slate-700 dark:text-slate-400">${extra}</span>` : "";
             return `<span class="inline-flex items-center gap-1">${dot} ${item.label} ${extraHtml}</span>`;
         });
 
         statusBar.innerHTML = `
-            <span class="text-slate-400 dark:text-slate-500 text-3xs mr-1">${dataDate.slice(0,4)}-${dataDate.slice(4,6)}-${dataDate.slice(6,8)}</span>
+            <span class="text-slate-700 dark:text-slate-400 text-3xs mr-1">${dataDate.slice(0,4)}-${dataDate.slice(4,6)}-${dataDate.slice(6,8)}</span>
             ${dots.join('<span class="text-slate-300 dark:text-slate-700 mx-0.5">|</span>')}
         `;
     }
@@ -324,9 +323,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (isVisible) {
                 // 可見 → 立即重繪
-                const select = document.getElementById("watchlist-select");
                 const ws = window.WatchlistStore;
-                if (select && ws) populateWatchlistSelect(select, ws);
+                if (ws) populateWatchlistSelectDropdown(ws);
                 _snapshotCache = null;
                 _watchlistDirty = false;
                 fetchAndRenderWatchlist();
@@ -336,13 +334,28 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        // select 切換
-        const select = document.getElementById("watchlist-select");
-        if (select) {
-            select.addEventListener("change", (e) => {
+        // 自訂 dropdown toggle / 切換
+        const btn = document.getElementById("watchlist-select-btn");
+        const dropdown = document.getElementById("watchlist-select-dropdown");
+        if (btn && dropdown) {
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                dropdown.classList.toggle("hidden");
+            });
+            // 點擊 dropdown 內選項 → 切換 active list 並關閉
+            dropdown.addEventListener("click", (e) => {
+                const item = e.target.closest("[data-wl-name]");
+                if (!item) return;
+                const name = item.dataset.wlName;
                 const ws = window.WatchlistStore;
-                if (!ws) return;
-                ws.setActiveList(e.target.value);
+                if (ws) ws.setActiveList(name);
+                dropdown.classList.add("hidden");
+            });
+            // click outside 關閉 dropdown
+            document.addEventListener("click", (e) => {
+                if (!e.target.closest("#watchlist-select-wrapper")) {
+                    dropdown.classList.add("hidden");
+                }
             });
         }
 
@@ -384,17 +397,45 @@ document.addEventListener("DOMContentLoaded", () => {
     // ──────────────────────────────────────────
     // 10. Watchlist: populate dropdown
     // ──────────────────────────────────────────
-    function populateWatchlistSelect(select, ws) {
+    function populateWatchlistSelectDropdown(ws) {
+        const label = document.getElementById("watchlist-select-label");
+        const panel = document.getElementById("watchlist-select-dropdown");
+        if (!label || !panel) return;
+
         const lists = ws.getAllLists();
         const active = ws.getActiveListName();
-        select.innerHTML = "";
-        Object.keys(lists).forEach(name => {
-            const opt = document.createElement("option");
-            opt.value = name;
-            opt.textContent = `${name} (${lists[name].length})`;
-            select.appendChild(opt);
+        const listNames = Object.keys(lists);
+
+        // 更新觸發按鈕上的文字
+        if (active && lists[active]) {
+            label.textContent = `${active} (${lists[active].length})`;
+        } else if (listNames.length) {
+            label.textContent = `${listNames[0]} (${lists[listNames[0]].length})`;
+        } else {
+            label.textContent = "尚無清單";
+        }
+
+        // 渲染 dropdown panel 內容（與 stock-modal.js 的 renderWatchlistDropdown style 一致）
+        panel.innerHTML = "";
+        if (!listNames.length) {
+            panel.innerHTML = `<div class="px-3 py-1.5 text-xs text-slate-700 dark:text-slate-400">尚無自選清單</div>`;
+            return;
+        }
+
+        listNames.forEach(name => {
+            const count = lists[name].length;
+            const isActive = (name === active);
+            const row = document.createElement("div");
+            row.className = "flex items-center gap-2 px-3 py-1.5 text-xs text-slate-800 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer";
+            row.dataset.wlName = name;
+            // active 標記：仿 stock-modal 的 span.watchlist-count 位置，放一個勾選圖示
+            row.innerHTML = `
+                <span class="w-3.5 h-3.5 flex items-center justify-center text-xs ${isActive ? "text-emerald-600 dark:text-emerald-500" : "text-transparent"}">✓</span>
+                <span class="flex-1 truncate">${name}</span>
+                <span class="text-slate-700 dark:text-slate-400 text-2xs">${count}</span>
+            `;
+            panel.appendChild(row);
         });
-        select.value = active;
     }
 
     // ──────────────────────────────────────────
@@ -402,21 +443,21 @@ document.addEventListener("DOMContentLoaded", () => {
     // ──────────────────────────────────────────
     async function fetchAndRenderWatchlist() {
         const tbody = document.getElementById("watchlist-tbody");
-        const select = document.getElementById("watchlist-select");
-        if (!tbody || !select) return;
+        const dropdown = document.getElementById("watchlist-select-dropdown");
+        if (!tbody || !dropdown) return;
 
         const ws = window.WatchlistStore;
         if (!ws) {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-slate-400 dark:text-slate-500 text-2xs">WatchlistStore 未載入</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-slate-700 dark:text-slate-400 text-2xs">WatchlistStore 未載入</td></tr>`;
             return;
         }
 
-        // 初始化下拉選單
-        populateWatchlistSelect(select, ws);
+        // 初始化自訂 dropdown
+        populateWatchlistSelectDropdown(ws);
 
         const ids = ws.getActiveIds();
         if (!ids.length) {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-slate-400 dark:text-slate-500 text-2xs">尚無自選股</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-slate-700 dark:text-slate-400 text-2xs">尚無自選股</td></tr>`;
             return;
         }
 
@@ -480,7 +521,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderWatchlistTable(tbody, rows) {
         tbody.innerHTML = "";
         if (!rows.length) {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-slate-400 dark:text-slate-500 text-2xs">無符合資料</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-slate-700 dark:text-slate-400 text-2xs">無符合資料</td></tr>`;
             return;
         }
         rows.forEach(r => {
@@ -497,19 +538,19 @@ document.addEventListener("DOMContentLoaded", () => {
                 ? Number(r.volume).toLocaleString(undefined, { maximumFractionDigits: 0 })
                 : "--";
 
-            const changeCls = (r.change != null) ? (r.change > 0 ? "text-rose-500" : r.change < 0 ? "text-emerald-500" : "text-slate-500") : "text-slate-500";
-            const pctCls = (r.change_pct != null) ? (r.change_pct > 0 ? "text-rose-500" : r.change_pct < 0 ? "text-emerald-500" : "text-slate-500") : "text-slate-500";
+            const changeCls = (r.change != null) ? (r.change > 0 ? "text-rose-500" : r.change < 0 ? "text-emerald-500" : "text-slate-800 dark:text-slate-300") : "text-slate-800 dark:text-slate-300";
+            const pctCls = (r.change_pct != null) ? (r.change_pct > 0 ? "text-rose-500" : r.change_pct < 0 ? "text-emerald-500" : "text-slate-800 dark:text-slate-300") : "text-slate-800 dark:text-slate-300";
 
             const tr = document.createElement("tr");
             tr.className = "hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer";
             tr.dataset.stockId = r.stock_id;
             tr.innerHTML = `
                 <td class="py-2 px-2 text-slate-800 dark:text-slate-300 font-mono">${r.stock_id}</td>
-                <td class="py-2 px-2 text-slate-800 dark:text-slate-200">${r.stock_name}</td>
-                <td class="py-2 px-2 text-right font-mono text-slate-800 dark:text-slate-200">${closeStr}</td>
+                <td class="py-2 px-2 text-slate-800 dark:text-slate-300">${r.stock_name}</td>
+                <td class="py-2 px-2 text-right font-mono text-slate-800 dark:text-slate-300">${closeStr}</td>
                 <td class="py-2 px-2 text-right font-mono ${changeCls}">${changeStr}</td>
                 <td class="py-2 px-2 text-right font-mono ${pctCls}">${pctStr}</td>
-                <td class="py-2 px-2 text-right font-mono text-slate-400 dark:text-slate-500">${volStr}</td>
+                <td class="py-2 px-2 text-right font-mono text-slate-800 dark:text-slate-300">${volStr}</td>
             `;
             tr.addEventListener("click", () => {
                 if (typeof StockModal !== "undefined" && StockModal.openStockModal) {
