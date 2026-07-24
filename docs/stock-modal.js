@@ -692,8 +692,31 @@ window.StockModal = (() => {
       lockControls(); 
       return; 
     }
-    const validPrice = priceArr.filter(p => p.open != null && p.high != null && p.low != null && p.close != null);
-    if (!validPrice.length) { 
+    // LOCF fill OHLC for halt/suspension days: all four prices use previous close
+    let lastClose = null;
+    const filledPrice = [];
+    for (const p of priceArr) {
+      if (p.close != null) lastClose = p.close;
+      // skip days at the very beginning that have no close reference yet
+      if (lastClose == null) continue;
+      const isHalt = (p.open == null || p.high == null || p.low == null || p.close == null);
+      filledPrice.push({
+        date: p.date,
+        open: isHalt ? lastClose : p.open,
+        high: isHalt ? lastClose : p.high,
+        low: isHalt ? lastClose : p.low,
+        close: isHalt ? lastClose : p.close,
+        volume: p.volume != null ? p.volume : 0,
+        ma5: p.ma5,
+        ma10: p.ma10,
+        ma20: p.ma20,
+        ma60: p.ma60,
+        ma120: p.ma120,
+        bband_upper: p.bband_upper,
+        bband_lower: p.bband_lower,
+      });
+    }
+    if (!filledPrice.length) { 
       els.klineContainer.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-slate-600 text-xs">無有效價量資料</div>'; 
       lockControls(); 
       return; 
@@ -739,10 +762,10 @@ window.StockModal = (() => {
     resizeObserver = new ResizeObserver(entries => { for (const e of entries) { const { width, height } = e.contentRect; if (lwcChart && width > 0 && height > 0) lwcChart.applyOptions({ width, height }); } });
     resizeObserver.observe(els.klineContainer);
     lwcCandleSeries = lwcChart.addCandlestickSeries({ upColor: C.upBorder, downColor: C.downBorder, borderUpColor: C.upBorder, borderDownColor: C.downBorder, wickUpColor: C.upBorder, wickDownColor: C.downBorder });
-    lwcCandleSeries.setData(validPrice.map(p => ({ time: p.date, open: p.open, high: p.high, low: p.low, close: p.close })));
+    lwcCandleSeries.setData(filledPrice.map(p => ({ time: p.date, open: p.open, high: p.high, low: p.low, close: p.close })));
     lwcVolumeSeries = lwcChart.addHistogramSeries({ priceScaleId: 'volume' });
     lwcChart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.85, bottom: 0.02 } });
-    lwcVolumeSeries.setData(validPrice.map(p => ({ time: p.date, value: p.volume != null ? p.volume / 1000 : 0, color: p.close >= p.open ? C.up : C.down })));
+    lwcVolumeSeries.setData(filledPrice.map(p => ({ time: p.date, value: p.volume != null ? p.volume / 1000 : 0, color: p.close >= p.open ? C.up : C.down })));
     MA_WINDOWS.forEach(w => {
       const key = 'ma' + w;
       // 初始可見性直接根據 currentMode 決定，避免 LWC 內部重新渲染時重置為錯誤狀態
@@ -755,14 +778,14 @@ window.StockModal = (() => {
         visible = w === 20;
       }
       const s = lwcChart.addLineSeries({ color: (isDarkMode() ? MA_COLORS : MA_COLORS_LIGHT)[key], lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, visible });
-      const d = []; validPrice.forEach(p => { if (p[key] != null) d.push({ time: p.date, value: p[key] }); });
+      const d = []; filledPrice.forEach(p => { if (p[key] != null) d.push({ time: p.date, value: p[key] }); });
       s.setData(d);
       lwcMASeries[key] = s;
     });
-    const len = validPrice.length;
+    const len = filledPrice.length;
     if (len > 0) {
-      const from = validPrice[Math.max(0, len - 60)].date;
-      const to = validPrice[len - 1].date;
+      const from = filledPrice[Math.max(0, len - 60)].date;
+      const to = filledPrice[len - 1].date;
       lwcChart.timeScale().setVisibleRange({ from, to });
     }
     // BBands lines
@@ -771,28 +794,28 @@ window.StockModal = (() => {
     priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
     visible: currentMode === 'bb',
     });
-    const bbUpperData = []; validPrice.forEach(p => { if (p.bband_upper != null) bbUpperData.push({ time: p.date, value: p.bband_upper }); });
+    const bbUpperData = []; filledPrice.forEach(p => { if (p.bband_upper != null) bbUpperData.push({ time: p.date, value: p.bband_upper }); });
     lwcBBUpper.setData(bbUpperData);
     lwcBBLower = lwcChart.addLineSeries({
     color: isDarkMode() ? BB_COLOR : BB_COLOR_LIGHT, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.LargeDashed,
     priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
     visible: currentMode === 'bb',
     });
-    const bbLowerData = []; validPrice.forEach(p => { if (p.bband_lower != null) bbLowerData.push({ time: p.date, value: p.bband_lower }); });
+    const bbLowerData = []; filledPrice.forEach(p => { if (p.bband_lower != null) bbLowerData.push({ time: p.date, value: p.bband_lower }); });
     lwcBBLower.setData(bbLowerData);
     // Hover legend: subscribe crosshair move
-    lastPriceBar = validPrice[validPrice.length - 1];
+    lastPriceBar = filledPrice[filledPrice.length - 1];
     if (els.hoverLegend && lastPriceBar) {
       updateHoverLegend(lastPriceBar, currentMode);
     }
     lwcChart.subscribeCrosshairMove(param => {
-      if (!param || !param.time || !validPrice.length) {
+      if (!param || !param.time || !filledPrice.length) {
         updateHoverLegend(lastPriceBar, currentMode);
         return;
       }
-      const idx = validPrice.findIndex(p => p.date === param.time);
+      const idx = filledPrice.findIndex(p => p.date === param.time);
       if (idx >= 0) {
-        updateHoverLegend(validPrice[idx], currentMode);
+        updateHoverLegend(filledPrice[idx], currentMode);
       } else {
         updateHoverLegend(lastPriceBar, currentMode);
       }
