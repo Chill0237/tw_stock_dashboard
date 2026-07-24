@@ -243,18 +243,18 @@ window.StockModal = (() => {
     return (typeof window !== 'undefined' && window.WatchlistStore) ? window.WatchlistStore : null;
   }
 
-  function renderWatchlistDropdown() {
+  async function renderWatchlistDropdown() {
     const dd = els.watchlistDropdown;
     if (!dd) return;
     const store = getWatchlistStore();
     if (!store) { dd.innerHTML = ''; dd.classList.add('hidden'); return; }
-    const allLists = store.getAllLists();
+    const allLists = await store.getAllLists();
     const listNames = Object.keys(allLists);
     if (!listNames.length) { dd.innerHTML = ''; dd.classList.add('hidden'); return; }
     const sid = currentStockId;
     let html = '';
     for (const name of listNames) {
-      const checked = sid ? store.isInList(name, sid) : false;
+      const checked = sid ? await store.isInList(name, sid) : false;
       html += `<label class="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"><input type="checkbox" class="watchlist-cb w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-600 text-emerald-600 dark:text-emerald-500 focus:ring-emerald-500" data-list="${name}" ${checked ? 'checked' : ''}> ${name}</label>`;
     }
     html += `<button id="watchlist-new-btn" class="flex items-center gap-2 w-full text-left text-xs text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 border-t border-slate-200 dark:border-slate-700 mt-1 pt-1.5 pb-1 px-3 hover:bg-slate-100 dark:hover:bg-slate-800"><span class="inline-flex items-center justify-center w-3.5 h-3.5"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>新建清單</button>`;
@@ -262,13 +262,13 @@ window.StockModal = (() => {
 
     // bind checkboxes
     dd.querySelectorAll('.watchlist-cb').forEach(cb => {
-      cb.addEventListener('change', () => {
+      cb.addEventListener('change', async () => {
         const listName = cb.dataset.list;
         if (!store || !listName || !sid) return;
         if (cb.checked) {
-          store.addToList(listName, sid);
+          await store.addToList(listName, sid);
         } else {
-          store.removeFromList(listName, sid);
+          await store.removeFromList(listName, sid);
         }
         // updateWatchlistButton will be called by watchlistchange event handler
       });
@@ -320,16 +320,16 @@ window.StockModal = (() => {
           errEl.classList.add('hidden');
         };
 
-        const commit = () => {
+        const commit = async () => {
           const name = input.value.trim();
           if (!name) { cancel(); return; }
-          const ok = store.createList(name);
+          const ok = await store.createList(name);
           if (!ok) {
             showError('建立失敗：名稱可能重複、過長或為純數字。');
             input.focus();
             return;
           }
-          store.addToList(name, sid);
+          await store.addToList(name, sid);
           renderWatchlistDropdown();
         };
         const cancel = () => {
@@ -341,15 +341,15 @@ window.StockModal = (() => {
           wrapper.replaceWith(restoreBtn);
           bindCreateBtn(container);
         };
-        confirmBtn.addEventListener('click', commit);
+        confirmBtn.addEventListener('click', async () => { await commit(); });
         cancelBtn.addEventListener('click', cancel);
-        input.addEventListener('keydown', e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel(); });
+        input.addEventListener('keydown', async e => { if (e.key === 'Enter') await commit(); if (e.key === 'Escape') cancel(); });
       });
     };
     bindCreateBtn(dd);
   }
 
-  function updateWatchlistButton() {
+  async function updateWatchlistButton() {
     const btn = els.btnWatchlist;
     if (!btn) return;
     const svg = btn.querySelector('svg');
@@ -372,16 +372,18 @@ window.StockModal = (() => {
       return;
     }
 
+    const inAnyList = await store.isStockInAnyList(sid);
+
     if (_dropdownOpen) {
       // 下拉選單開啟中：凍結所有 hover（無任何 hover 偽類，無背景 hover）
-      if (store.isStockInAnyList(sid)) {
+      if (inAnyList) {
         btn.classList.add('text-rose-500', 'dark:text-rose-600');
         if (svg) svg.setAttribute('fill', 'currentColor');
       } else {
         btn.classList.add('text-gray-600', 'dark:text-slate-400');
         if (svg) svg.setAttribute('fill', 'none');
       }
-    } else if (store.isStockInAnyList(sid)) {
+    } else if (inAnyList) {
       // 已收藏 + 正常狀態：底色 hover 一致於同學會，rose 加深而非變淺
       btn.classList.add('text-rose-500', 'dark:text-rose-600', 'hover:text-rose-600', 'dark:hover:text-rose-700', 'hover:bg-slate-300', 'dark:hover:bg-slate-600');
       if (svg) svg.setAttribute('fill', 'currentColor');
@@ -392,27 +394,27 @@ window.StockModal = (() => {
     }
   }
 
-  function toggleWatchlistDropdown() {
+  async function toggleWatchlistDropdown() {
     const dd = els.watchlistDropdown;
     if (!dd) return;
     if (dd.classList.contains('hidden')) {
-      renderWatchlistDropdown();
+      await renderWatchlistDropdown();
       dd.classList.remove('hidden');
       _dropdownOpen = true;
-      updateWatchlistButton();
+      await updateWatchlistButton();
     } else {
       dd.classList.add('hidden');
       _dropdownOpen = false;
-      updateWatchlistButton();
+      await updateWatchlistButton();
     }
   }
 
-  function closeWatchlistDropdown() {
+  async function closeWatchlistDropdown() {
     const dd = els.watchlistDropdown;
     if (dd) {
       dd.classList.add('hidden');
       _dropdownOpen = false;
-      updateWatchlistButton();
+      await updateWatchlistButton();
     }
   }
 
@@ -437,21 +439,21 @@ window.StockModal = (() => {
     }
 
     // close dropdown when clicking outside
-    outsideClickHandler = function(e) {
+    outsideClickHandler = async function(e) {
       if (els.watchlistDropdown && !els.watchlistDropdown.classList.contains('hidden')) {
         const wrapper = document.getElementById('modal-btn-watchlist-wrapper');
         if (wrapper && !wrapper.contains(e.target)) {
-          closeWatchlistDropdown();
+          await closeWatchlistDropdown();
         }
       }
     };
     document.addEventListener('click', outsideClickHandler, true);
 
     // listen to watchlist changes from other tabs/windows
-    watchlistChangeHandler = function() {
+    watchlistChangeHandler = async function() {
       if (currentStockId) {
-        renderWatchlistDropdown();
-        updateWatchlistButton();
+        await renderWatchlistDropdown();
+        await updateWatchlistButton();
       }
     };
     window.addEventListener('watchlistchange', watchlistChangeHandler);
@@ -618,15 +620,15 @@ window.StockModal = (() => {
       renderSubTab('institutional');
 
       // ── update watchlist UI after data loaded ──
-      renderWatchlistDropdown();
-      updateWatchlistButton();
+      await renderWatchlistDropdown();
+      await updateWatchlistButton();
     } catch (e) {
       console.error('[StockModal]', e);
       els.headerInfo.innerHTML = `<span class="text-lg font-bold text-rose-600 dark:text-rose-500">${stockId}</span><span class="text-rose-700 dark:text-rose-500 text-xs ml-2">載入失敗</span>`;
       els.subchartContainer.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-rose-700 dark:text-rose-500 text-xs">載入失敗</div>';
       els.btnCmoney.classList.remove('hidden');
       els.btnGoogle.classList.remove('hidden');
-      updateWatchlistButton();
+      await updateWatchlistButton();
     }
   }
 

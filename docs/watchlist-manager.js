@@ -22,6 +22,16 @@ window.WatchlistManagerModal = (() => {
   let _stockIndexMap = null;         // { '2330': '台積電', '台積電': '2330', ... }
   let _stockIndexPromise = null;
 
+  // 1x1 透明像素，用於消除原生 drag ghost
+  const _transparentImg = new Image();
+  _transparentImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+  // 自訂 floating drag preview 參照
+  let _dragPreview = null;
+
+  // rAF 節流標記 (dragover 高頻事件)
+  let _rafPending = false;
+
   // ──────────────────────────────────────────────
   // DOM element cache
   // ──────────────────────────────────────────────
@@ -108,7 +118,7 @@ window.WatchlistManagerModal = (() => {
                   <input id="wm-new-list-input" type="text" maxlength="20" placeholder="輸入清單名稱..."
                     class="flex-1 px-2.5 py-1.5 text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-300 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 dark:focus:border-indigo-500">
                   <button id="wm-new-list-btn"
-                    class="shrink-0 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300 border border-slate-300 dark:border-slate-600 px-3 py-1.5 rounded flex items-center justify-center transition-colors">
+                    class="shrink-0 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300 border border-slate-300 dark:border-slate-600 px-3 py-1.5 rounded flex items-center justify-center transition-colors">
                     ${ICON_PLUS}
                   </button>
                 </div>
@@ -125,7 +135,7 @@ window.WatchlistManagerModal = (() => {
                 <h3 id="wm-right-title" class="text-base font-bold text-slate-800 dark:text-slate-200"></h3>
                 <div class="flex items-center gap-1">
                   <button id="wm-edit-list-btn"
-                    class="bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300 border border-slate-300 dark:border-slate-600 p-1.5 rounded flex items-center justify-center transition-colors"
+                    class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300 border border-slate-300 dark:border-slate-600 p-1.5 rounded flex items-center justify-center transition-colors"
                     title="編輯名稱">
                     ${ICON_EDIT}
                   </button>
@@ -145,7 +155,7 @@ window.WatchlistManagerModal = (() => {
                   <input id="wm-new-stock-input" type="text" placeholder="輸入股票代號或名稱（逗號分隔）..."
                     class="flex-1 px-2.5 py-1.5 text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-300 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400">
                   <button id="wm-new-stock-btn"
-                    class="shrink-0 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300 border border-slate-300 dark:border-slate-600 px-3 py-1.5 rounded flex items-center justify-center transition-colors">
+                    class="shrink-0 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300 border border-slate-300 dark:border-slate-600 px-3 py-1.5 rounded flex items-center justify-center transition-colors">
                     ${ICON_PLUS}
                   </button>
                 </div>
@@ -195,42 +205,74 @@ window.WatchlistManagerModal = (() => {
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !els.overlay.classList.contains('hidden')) close(); });
 
     // 監聽 Store 變更 → 自動重繪
-    window.addEventListener('watchlistchange', () => {
+    window.addEventListener('watchlistchange', async () => {
       if (!els.overlay.classList.contains('hidden')) {
-        _renderAll();
+        await _renderAll();
       }
     });
 
     // 新增清單
-    els.newListBtn.addEventListener('click', _handleNewList);
-    els.newListInput.addEventListener('keydown', e => { if (e.key === 'Enter') _handleNewList(); });
+    els.newListBtn.addEventListener('click', async () => { await _handleNewList(); });
+    els.newListInput.addEventListener('keydown', async e => { if (e.key === 'Enter') await _handleNewList(); });
 
     // 新增個股
-    els.newStockBtn.addEventListener('click', _handleNewStock);
-    els.newStockInput.addEventListener('keydown', e => { if (e.key === 'Enter') _handleNewStock(); });
+    els.newStockBtn.addEventListener('click', async () => { await _handleNewStock(); });
+    els.newStockInput.addEventListener('keydown', async e => { if (e.key === 'Enter') await _handleNewStock(); });
 
     // 編輯清單名稱（右側標題）
     els.editListBtn.addEventListener('click', _handleEditListTitle);
 
     // 刪除清單
-    els.deleteListBtn.addEventListener('click', _handleDeleteList);
+    els.deleteListBtn.addEventListener('click', async () => { await _handleDeleteList(); });
+
+    // 最高優先級全螢幕 document dragover：無條件設為合法 DropZone + preview 座標追蹤
+    document.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      if (!_dragPreview) return;
+
+      // (0,0) 防護：瀏覽器偶發座標歸零
+      if (e.clientX === 0 && e.clientY === 0) return;
+
+      // 更新 floating preview 位置 (GPU 加速 + rAF 節流)
+      const targetX = e.clientX - _dragPreview._offsetX;
+      const targetY = e.clientY - _dragPreview._offsetY;
+      if (!_rafPending) {
+        _rafPending = true;
+        requestAnimationFrame(() => {
+          if (_dragPreview) {
+            _dragPreview.style.transform = `translate3d(${targetX}px, ${targetY}px, 0)`;
+          }
+          _rafPending = false;
+        });
+      }
+    });
+
+    // 全域 drop：僅取消瀏覽器預設行為（開新分頁、飛回原位）
+    // 真正的排序寫入由內部 drop 處理器負責
+    document.addEventListener('drop', e => {
+      e.preventDefault();
+    });
   }
 
   // ──────────────────────────────────────────────
   // 打開 Modal
   // ──────────────────────────────────────────────
-  function open() {
+  async function open() {
     const ws = _store();
     if (!ws) return;
 
+    await ws.init();
+
     // 同步 active list
-    _currentListName = ws.getActiveListName();
+    _currentListName = await ws.getActiveListName();
 
     // 確保股票 index 已載入
     _loadStockIndex();
 
     els.overlay.classList.remove('hidden');
-    _renderAll();
+    await _renderAll();
   }
 
   // ──────────────────────────────────────────────
@@ -243,22 +285,37 @@ window.WatchlistManagerModal = (() => {
   // ──────────────────────────────────────────────
   // 全體重繪
   // ──────────────────────────────────────────────
-  function _renderAll() {
+  async function _renderAll() {
     const ws = _store();
     if (!ws) return;
-    _renderLeftList(ws);
-    _renderRightPanel(ws);
+    const readOnly = ws.isReadOnly();
+
+    // 唯讀模式：隱藏新增/編輯/刪除 UI
+    if (els.newListInput) {
+      const newListBlock = els.newListInput.closest('.shrink-0');
+      if (newListBlock) newListBlock.style.display = readOnly ? 'none' : '';
+    }
+    if (els.newStockInput) {
+      const newStockBlock = els.newStockInput.closest('.shrink-0');
+      if (newStockBlock) newStockBlock.style.display = readOnly ? 'none' : '';
+    }
+    if (els.editListBtn) els.editListBtn.style.display = readOnly ? 'none' : '';
+    if (els.deleteListBtn) els.deleteListBtn.style.display = readOnly ? 'none' : '';
+
+    await _renderLeftList(ws);
+    await _renderRightPanel(ws);
   }
 
   // ──────────────────────────────────────────────
   // 左欄渲染
   // ──────────────────────────────────────────────
-  function _renderLeftList(ws) {
+  async function _renderLeftList(ws) {
     const container = els.leftList;
     if (!container) return;
 
-    const allLists = ws.getAllLists();
-    const activeName = ws.getActiveListName();
+    const readOnly = ws.isReadOnly();
+    const allLists = await ws.getAllLists();
+    const activeName = await ws.getActiveListName();
     const listNames = Object.keys(allLists);
 
     container.innerHTML = '';
@@ -276,10 +333,10 @@ window.WatchlistManagerModal = (() => {
       const row = document.createElement('div');
       row.className = 'flex items-center justify-between py-1.5 px-2.5 rounded cursor-pointer select-none ' +
         (isActive
-          ? 'bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300'
+          ? 'bg-indigo-50 dark:bg-indigo-900 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300'
           : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700');
       row.style.cssText = row.style.cssText + 'transition:all 120ms ease;';
-      row.draggable = true;
+      row.draggable = !readOnly;
       row.dataset.listName = name;
 
       const nameSpan = document.createElement('span');
@@ -292,7 +349,7 @@ window.WatchlistManagerModal = (() => {
 
       const gripEl = document.createElement('span');
       gripEl.className = 'shrink-0 flex items-center';
-      gripEl.innerHTML = ICON_GRIP;
+      gripEl.innerHTML = readOnly ? '' : ICON_GRIP;
 
       const leftGroup = document.createElement('span');
       leftGroup.className = 'flex items-center min-w-0 flex-1 gap-0.5';
@@ -307,14 +364,14 @@ window.WatchlistManagerModal = (() => {
       row.appendChild(rightGroup);
 
       // 點擊 row 切換 active
-      row.addEventListener('click', e => {
+      row.addEventListener('click', async e => {
         // 避免拖曳結束後觸發 click
         if (row.dataset.wasDragged === 'true') {
           row.dataset.wasDragged = 'false';
           return;
         }
         _currentListName = name;
-        ws.setActiveList(name);
+        await ws.setActiveList(name);
       });
 
       // Drag & Drop — 清單排序
@@ -335,29 +392,61 @@ window.WatchlistManagerModal = (() => {
       row.dataset.isDragging = 'true';
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', row.dataset.listName);
-      // 延遲套用視覺樣式（讓瀏覽器先擷取拖曳影像）
+
+      // 消除原生 ghost：使用 1x1 透明像素
+      e.dataTransfer.setDragImage(_transparentImg, 0, 0);
+
+      // 建立自訂 floating preview（100% 不透明）
+      const rowRect = row.getBoundingClientRect();
+      const dragOffsetX = e.clientX - rowRect.left;
+      const dragOffsetY = e.clientY - rowRect.top;
+
+      const clone = row.cloneNode(true);
+      clone.removeAttribute('id');
+      clone.style.cssText = `position:fixed;top:0;left:0;pointer-events:none;z-index:99999;opacity:1;will-change:transform;width:${rowRect.width}px;box-sizing:border-box;transform:translate3d(${e.clientX - dragOffsetX}px, ${e.clientY - dragOffsetY}px, 0);`;
+      document.body.appendChild(clone);
+      _dragPreview = clone;
+      _dragPreview._offsetX = dragOffsetX;
+      _dragPreview._offsetY = dragOffsetY;
+
+      // 原位保留透明輪廓
       requestAnimationFrame(() => {
-        row.style.opacity = '0.85';
-        row.style.border = '2px dashed #818cf8'; // indigo-400 (tailwind #818cf8)
+        row.style.opacity = '0';
       });
     });
 
     row.addEventListener('dragend', e => {
-      // 復原樣式
+      // 清理 floating preview
+      if (_dragPreview) {
+        _dragPreview.remove();
+        _dragPreview = null;
+      }
+      // 恢復所有 row opacity
       row.style.opacity = '';
-      row.style.border = '';
-      row.dataset.wasDragged = 'true';
-      // 復原所有列樣式（防殘留）
       container.querySelectorAll('[draggable]').forEach(r => {
         r.style.opacity = '';
-        r.style.border = '';
         delete r.dataset.isDragging;
       });
+      row.dataset.wasDragged = 'true';
+    });
+
+    // container 層 dragover：確保行間縫隙也是合法落點
+    container.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+
+    row.addEventListener('dragenter', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
     });
 
     row.addEventListener('dragover', e => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
+
+      // (0,0) 防護：瀏覽器偶發座標歸零
+      if (e.clientX === 0 && e.clientY === 0) return;
 
       // 找出正在被拖曳的來源元素
       const sourceEl = container.querySelector('[data-is-dragging="true"]');
@@ -375,8 +464,22 @@ window.WatchlistManagerModal = (() => {
       }
     });
 
-    row.addEventListener('drop', e => {
+    row.addEventListener('drop', async e => {
       e.preventDefault();
+      e.stopPropagation();
+
+      // 清理 floating preview
+      if (_dragPreview) {
+        _dragPreview.remove();
+        _dragPreview = null;
+      }
+
+      // 立即恢復所有行 opacity，阻止瀏覽器播放飛回動畫
+      row.style.opacity = '';
+      container.querySelectorAll('[draggable]').forEach(r => {
+        r.style.opacity = '';
+      });
+
       // 根據目前 DOM 順序寫入 Store
       const rows = Array.from(container.querySelectorAll('[draggable]'));
       const draggedName = e.dataTransfer.getData('text/plain');
@@ -386,14 +489,14 @@ window.WatchlistManagerModal = (() => {
       if (fromIdx === -1) return;
 
       const currentOrder = rows.map(r => r.dataset.listName);
-      const allLists = ws.getAllLists();
+      const allLists = await ws.getAllLists();
       const originalOrder = Object.keys(allLists);
 
       const origFromIdx = originalOrder.indexOf(draggedName);
       const newToIdx = currentOrder.indexOf(draggedName);
 
       if (origFromIdx !== -1 && newToIdx !== -1 && origFromIdx !== newToIdx) {
-        ws.moveList(origFromIdx, newToIdx);
+        await ws.moveList(origFromIdx, newToIdx);
       }
     });
   }
@@ -401,20 +504,21 @@ window.WatchlistManagerModal = (() => {
   // ──────────────────────────────────────────────
   // 右欄渲染
   // ──────────────────────────────────────────────
-  function _renderRightPanel(ws) {
+  async function _renderRightPanel(ws) {
+    const readOnly = ws.isReadOnly();
     // 決定當前清單
     let listName = _currentListName;
-    const allLists = ws.getAllLists();
+    const allLists = await ws.getAllLists();
     const listNames = Object.keys(allLists);
 
     // fallback：若當前清單無效或不存在
     if (!listName || !allLists[listName]) {
-      listName = ws.getActiveListName();
+      listName = await ws.getActiveListName();
     }
     // 再 fallback：若 active 也不存在
     if (!allLists[listName] && listNames.length > 0) {
       listName = listNames[0];
-      ws.setActiveList(listName);
+      await ws.setActiveList(listName);
     }
 
     _currentListName = listName;
@@ -424,9 +528,9 @@ window.WatchlistManagerModal = (() => {
       els.rightTitle.textContent = listName || '';
     }
 
-    // 刪除按鈕：清單數 ≤ 1 時隱藏
+    // 刪除按鈕：清單數 <= 1 或唯讀時隱藏
     if (els.deleteListBtn) {
-      els.deleteListBtn.style.display = (listNames.length <= 1 || !listName) ? 'none' : '';
+      els.deleteListBtn.style.display = (listNames.length <= 1 || !listName || readOnly) ? 'none' : '';
     }
 
     // 渲染個股列表
@@ -448,21 +552,22 @@ window.WatchlistManagerModal = (() => {
       const row = document.createElement('div');
       row.className = 'flex items-center justify-between py-1.5 px-2.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-300';
       row.style.cssText = 'transition:all 120ms ease;';
-      row.draggable = true;
+      row.draggable = !readOnly;
       row.dataset.stockId = stockId;
 
-      // Drag Handle + 文字
+      // Drag Handle + 文字（唯讀時隱藏 grip 並無法拖曳）
       const leftSpan = document.createElement('span');
       leftSpan.className = 'text-xs font-medium flex items-center gap-1';
-      leftSpan.innerHTML = `${ICON_GRIP}${stockName ? `${stockId} ${stockName}` : stockId}`;
+      leftSpan.innerHTML = readOnly ? (stockName ? `${stockId} ${stockName}` : stockId) : `${ICON_GRIP}${stockName ? `${stockId} ${stockName}` : stockId}`;
 
       const rightBtn = document.createElement('button');
       rightBtn.className = 'w-5 h-5 flex items-center justify-center rounded text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-900 hover:bg-rose-100 dark:hover:bg-rose-800 border border-rose-200 dark:border-rose-700 transition-colors shrink-0 ml-2';
       rightBtn.innerHTML = ICON_X;
-      rightBtn.addEventListener('click', e => {
+      if (readOnly) { rightBtn.style.display = 'none'; }
+      rightBtn.addEventListener('click', async e => {
         e.stopPropagation();
         if (!listName) return;
-        ws.removeFromList(listName, stockId);
+        await ws.removeFromList(listName, stockId);
       });
 
       row.appendChild(leftSpan);
@@ -486,31 +591,68 @@ window.WatchlistManagerModal = (() => {
       row.dataset.isDragging = 'true';
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', row.dataset.stockId);
+
+      // 消除原生 ghost：使用 1x1 透明像素
+      e.dataTransfer.setDragImage(_transparentImg, 0, 0);
+
+      // 建立自訂 floating preview（100% 不透明）
+      const rowRect = row.getBoundingClientRect();
+      const dragOffsetX = e.clientX - rowRect.left;
+      const dragOffsetY = e.clientY - rowRect.top;
+
+      const clone = row.cloneNode(true);
+      clone.removeAttribute('id');
+      clone.style.cssText = `position:fixed;top:0;left:0;pointer-events:none;z-index:99999;opacity:1;will-change:transform;width:${rowRect.width}px;box-sizing:border-box;transform:translate3d(${e.clientX - dragOffsetX}px, ${e.clientY - dragOffsetY}px, 0);`;
+      document.body.appendChild(clone);
+      _dragPreview = clone;
+      _dragPreview._offsetX = dragOffsetX;
+      _dragPreview._offsetY = dragOffsetY;
+
+      // 原位保留透明輪廓
       requestAnimationFrame(() => {
-        row.style.opacity = '0.85';
-        row.style.border = '2px dashed #818cf8';
+        row.style.opacity = '0';
       });
     });
 
     row.addEventListener('dragend', e => {
+      // 清理 floating preview
+      if (_dragPreview) {
+        _dragPreview.remove();
+        _dragPreview = null;
+      }
+      // 恢復所有 row opacity
       row.style.opacity = '';
-      row.style.border = '';
-      row.dataset.wasDragged = 'true';
       container.querySelectorAll('[draggable]').forEach(r => {
         r.style.opacity = '';
-        r.style.border = '';
         delete r.dataset.isDragging;
       });
+      row.dataset.wasDragged = 'true';
+    });
+
+    // container 層 dragover：確保行間縫隙也是合法落點
+    container.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+
+    row.addEventListener('dragenter', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
     });
 
     row.addEventListener('dragover', e => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
 
+      // (0,0) 防護：瀏覽器偶發座標歸零
+      if (e.clientX === 0 && e.clientY === 0) return;
+
       const sourceEl = container.querySelector('[data-is-dragging="true"]');
 
+      // 沒有來源，或滑鼠在自己身上 → 不做事
       if (!sourceEl || sourceEl === row) return;
 
+      // 計算滑鼠位置，決定插入在前或後
       const rect = row.getBoundingClientRect();
       const midY = rect.top + rect.height / 2;
       if (e.clientY < midY) {
@@ -520,15 +662,29 @@ window.WatchlistManagerModal = (() => {
       }
     });
 
-    row.addEventListener('drop', e => {
+    row.addEventListener('drop', async e => {
       e.preventDefault();
+      e.stopPropagation();
+
+      // 清理 floating preview
+      if (_dragPreview) {
+        _dragPreview.remove();
+        _dragPreview = null;
+      }
+
+      // 立即恢復所有行 opacity，阻止瀏覽器播放飛回動畫
+      row.style.opacity = '';
+      container.querySelectorAll('[draggable]').forEach(r => {
+        r.style.opacity = '';
+      });
+
       const rows = Array.from(container.querySelectorAll('[draggable]'));
       const draggedId = e.dataTransfer.getData('text/plain');
 
       const fromIdx = rows.findIndex(r => r.dataset.stockId === draggedId);
       if (fromIdx === -1) return;
 
-      const allLists = ws.getAllLists();
+      const allLists = await ws.getAllLists();
       const originalIds = [...(allLists[listName] || [])];
       const currentIds = rows.map(r => r.dataset.stockId);
 
@@ -536,7 +692,7 @@ window.WatchlistManagerModal = (() => {
       const newToIdx = currentIds.indexOf(draggedId);
 
       if (origFromIdx !== -1 && newToIdx !== -1 && origFromIdx !== newToIdx) {
-        ws.moveInList(listName, origFromIdx, newToIdx);
+        await ws.moveInList(listName, origFromIdx, newToIdx);
       }
     });
   }
@@ -544,7 +700,7 @@ window.WatchlistManagerModal = (() => {
   // ──────────────────────────────────────────────
   // 新增清單 handler
   // ──────────────────────────────────────────────
-  function _handleNewList() {
+  async function _handleNewList() {
     const input = els.newListInput;
     const ws = _store();
     if (!input || !ws) return;
@@ -552,7 +708,7 @@ window.WatchlistManagerModal = (() => {
     const name = input.value.trim();
     if (!name) return;
 
-    const ok = ws.createList(name);
+    const ok = await ws.createList(name);
     if (ok) {
       input.value = '';
       // 清除 error
@@ -565,7 +721,7 @@ window.WatchlistManagerModal = (() => {
   // ──────────────────────────────────────────────
   // 新增個股 handler（支援空白/逗號分隔，支援名稱查詢，部分成功）
   // ──────────────────────────────────────────────
-  function _handleNewStock() {
+  async function _handleNewStock() {
     const input = els.newStockInput;
     const ws = _store();
     if (!input || !ws) return;
@@ -581,9 +737,9 @@ window.WatchlistManagerModal = (() => {
     const notFound = [];
     let addedCount = 0;
 
-    tokens.forEach(token => {
+    for (const token of tokens) {
       const trimmed = token.trim();
-      if (!trimmed) return;
+      if (!trimmed) continue;
 
       let stockId = null;
 
@@ -605,12 +761,12 @@ window.WatchlistManagerModal = (() => {
       }
 
       if (stockId) {
-        ws.addToList(listName, stockId);
+        await ws.addToList(listName, stockId);
         addedCount++;
       } else {
         notFound.push(trimmed);
       }
-    });
+    }
 
     // 處理 input 值與 error
     if (notFound.length > 0) {
@@ -650,11 +806,11 @@ window.WatchlistManagerModal = (() => {
     row.dataset.editing = 'true';
 
     // 提交編輯
-    const _commit = () => {
+    const _commit = async () => {
       const newName = input.value.trim();
       cleanup();
       if (newName && newName !== oldName) {
-        const ok = ws.renameList(oldName, newName);
+        const ok = await ws.renameList(oldName, newName);
         if (!ok) {
           _showError(els.leftError, '名稱重複或格式無效');
         }
@@ -723,10 +879,10 @@ window.WatchlistManagerModal = (() => {
       titleEl.textContent = _currentListName || '';
     };
 
-    const commit = () => {
+    const commit = async () => {
       const newName = input.value.trim();
       if (newName && newName !== oldName) {
-        const ok = ws.renameList(oldName, newName);
+        const ok = await ws.renameList(oldName, newName);
         if (!ok) {
           _showError(els.rightError, '名稱重複或格式無效');
           // 失敗時還原名稱
@@ -760,11 +916,11 @@ window.WatchlistManagerModal = (() => {
   // ──────────────────────────────────────────────
   // 刪除清單 handler
   // ──────────────────────────────────────────────
-  function _handleDeleteList() {
+  async function _handleDeleteList() {
     const ws = _store();
     if (!ws) return;
 
-    const allLists = ws.getAllLists();
+    const allLists = await ws.getAllLists();
     const listNames = Object.keys(allLists);
     if (listNames.length <= 1) return;
 
@@ -773,7 +929,7 @@ window.WatchlistManagerModal = (() => {
 
     if (!confirm(`確定要刪除清單「${name}」嗎？此操作無法復原。`)) return;
 
-    ws.deleteList(name);
+    await ws.deleteList(name);
     _currentListName = null;
   }
 

@@ -1,6 +1,98 @@
-document.addEventListener("DOMContentLoaded", () => {
+// ──────────────────────────────────────────
+// Konami Code 偵測與 PAT 輸入 Modal
+// ──────────────────────────────────────────
+(() => {
+    const SEQUENCE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'b', 'a'];
+    let _konamiBuffer = [];
+
+    function showPatModal() {
+        let modal = document.getElementById('pat-modal-overlay');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'pat-modal-overlay';
+            modal.className = 'fixed inset-0 z-[110] flex items-center justify-center bg-black/40 dark:bg-black/70';
+            modal.style.backdropFilter = 'blur(2px)';
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl p-6 w-[400px] max-w-[90vw]">
+                    <h2 class="text-base font-bold text-slate-800 dark:text-slate-200 mb-4">GitHub PAT 設定</h2>
+                    <input id="pat-input" type="password" placeholder="請輸入 GitHub PAT" class="w-full px-3 py-2 text-sm rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-300 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 dark:focus:border-indigo-500 mb-4">
+                    <div class="flex justify-between gap-3">
+                        <button id="pat-clear-btn" class="flex-1 px-3 py-2 text-xs border border-rose-200 dark:border-rose-700 text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900 rounded transition-colors">清除 PAT</button>
+                        <button id="pat-save-btn" class="flex-1 px-3 py-2 text-xs bg-indigo-500 hover:bg-indigo-600 text-white rounded transition-colors">儲存</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+
+            const closeModal = () => {
+                modal.classList.add('hidden');
+            };
+
+            // 點擊 overlay 背景關閉
+            modal.addEventListener('mousedown', e => {
+                if (e.target === modal) closeModal();
+            });
+
+            // 儲存 PAT
+            modal.querySelector('#pat-save-btn').addEventListener('click', () => {
+                const input = document.getElementById('pat-input');
+                const token = input.value.trim();
+                if (token) {
+                    localStorage.setItem('GH_GIST_PAT', token);
+                }
+                location.reload();
+            });
+
+            // 清除 PAT
+            modal.querySelector('#pat-clear-btn').addEventListener('click', () => {
+                localStorage.removeItem('GH_GIST_PAT');
+                location.reload();
+            });
+
+            // Escape 關閉
+            const escHandler = e => {
+                if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                    closeModal();
+                }
+            };
+            document.addEventListener('keydown', escHandler);
+        }
+
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            const input = document.getElementById('pat-input');
+            if (input) input.focus();
+        }, 50);
+    }
+
+    document.addEventListener('keydown', e => {
+        _konamiBuffer.push(e.key);
+        if (_konamiBuffer.length > SEQUENCE.length) {
+            _konamiBuffer.shift();
+        }
+
+        if (_konamiBuffer.length === SEQUENCE.length) {
+            const match = SEQUENCE.every((expected, i) => {
+                const actual = _konamiBuffer[i];
+                // letters: case insensitive
+                if (expected.length === 1 && /^[a-z]$/i.test(expected)) {
+                    return actual.toLowerCase() === expected.toLowerCase();
+                }
+                return actual === expected;
+            });
+            if (match) {
+                _konamiBuffer = [];
+                showPatModal();
+            }
+        }
+    });
+})();
+
+document.addEventListener("DOMContentLoaded", async () => {
     const dateSelect = document.getElementById("date-select");
     const statusBar = document.getElementById("data-status");
+
+    // 確保 WatchlistStore 已完成 Gist 載入（或 fallback）
+    await WatchlistStore.init();
 
     // ──────────────────────────────────────────
     // 28 項指標對照表（7 個頁籤）
@@ -343,12 +435,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 dropdown.classList.toggle("hidden");
             });
             // 點擊 dropdown 內選項 → 切換 active list 並關閉
-            dropdown.addEventListener("click", (e) => {
+            dropdown.addEventListener("click", async (e) => {
                 const item = e.target.closest("[data-wl-name]");
                 if (!item) return;
                 const name = item.dataset.wlName;
                 const ws = window.WatchlistStore;
-                if (ws) ws.setActiveList(name);
+                if (ws) await ws.setActiveList(name);
                 dropdown.classList.add("hidden");
             });
             // click outside 關閉 dropdown
@@ -397,13 +489,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // ──────────────────────────────────────────
     // 10. Watchlist: populate dropdown
     // ──────────────────────────────────────────
-    function populateWatchlistSelectDropdown(ws) {
+    async function populateWatchlistSelectDropdown(ws) {
         const label = document.getElementById("watchlist-select-label");
         const panel = document.getElementById("watchlist-select-dropdown");
         if (!label || !panel) return;
 
-        const lists = ws.getAllLists();
-        const active = ws.getActiveListName();
+        const lists = await ws.getAllLists();
+        const active = await ws.getActiveListName();
         const listNames = Object.keys(lists);
 
         // 更新觸發按鈕上的文字
@@ -453,9 +545,16 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // 初始化自訂 dropdown
-        populateWatchlistSelectDropdown(ws);
+        await populateWatchlistSelectDropdown(ws);
 
-        const ids = ws.getActiveIds();
+        // 唯讀模式隱藏編輯按鈕
+        const editTrigger = document.getElementById("watchlist-edit-trigger");
+        const readOnly = ws.isReadOnly();
+        if (editTrigger) {
+            editTrigger.style.display = readOnly ? 'none' : '';
+        }
+
+        const ids = await ws.getActiveIds();
         if (!ids.length) {
             tbody.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-slate-700 dark:text-slate-400 text-2xs">尚無自選股</td></tr>`;
             return;

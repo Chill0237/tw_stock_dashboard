@@ -1,17 +1,21 @@
 /**
  * watchlist-store.js — 自選股純資料層
  *
- * 零 DOM、零 HTML、零 fetch。僅操作 localStorage 與 memory cache。
+ * 零 DOM、零 HTML。透過 GitHub Gist API 做遠端持久化。
  * 掛載於 window.WatchlistStore。
  *
- * localStorage key: "quant_watchlists"
- * 結構: { lists: { "清單名": ["代號", ...] }, list_order: ["清單名", ...], active_list: "清單名" }
+ * Gist 結構:
+ *   window.GIST_ID — 由使用者設定於 HTML 或外部
+ *   localStorage GH_GIST_PAT — 由 Konami Code Modal 設定
+ *   檔案 chill_watchlist.json 內容: { lists: { "清單名": ["代號", ...] }, list_order: ["清單名", ...], active_list: "清單名" }
  */
 
 window.WatchlistStore = (() => {
   'use strict';
 
-  const STORAGE_KEY = 'quant_watchlists';
+  const GIST_ID = window.GIST_ID || 'b94daabf1616008aa1bbe10839a27df9';
+  const GIST_FILENAME = 'watchlist.json';
+  const GIST_API_BASE = 'https://api.github.com/gists';
 
   const DEFAULT_DATA = {
     lists: {
@@ -30,7 +34,7 @@ window.WatchlistStore = (() => {
   // ──────────────────────────────────────────────
 
   /**
-   * 驗證並修復從 localStorage 讀出的資料結構
+   * 驗證並修復從 Gist / fallback 讀出的資料結構
    * @param {any} rawData JSON.parse 後的原始物件
    * @returns {{lists:Object, list_order:string[], active_list:string}} 合法結構
    */
@@ -85,44 +89,78 @@ window.WatchlistStore = (() => {
   }
 
   /**
-   * 讀取資料（快取優先）
-   * @returns {{lists:Object, list_order:string[], active_list:string}}
+   * 讀取資料（快取優先），需要時從 Gist API fetch
+   * @returns {Promise<{lists:Object, list_order:string[], active_list:string}>}
    */
-  function _load() {
+  async function _load() {
     if (_cache !== null) return _cache;
 
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
+    // 若無 GIST_ID，直接使用預設資料作為 memory-only 模式
+    if (!GIST_ID) {
       _cache = { ...DEFAULT_DATA, lists: { ...DEFAULT_DATA.lists }, list_order: [...DEFAULT_DATA.list_order] };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(_cache));
       return _cache;
     }
 
-    let parsed;
     try {
-      parsed = JSON.parse(raw);
+      const res = await fetch(`${GIST_API_BASE}/${GIST_ID}`);
+      if (!res.ok) throw new Error(`Gist fetch failed: ${res.status}`);
+
+      const gist = await res.json();
+      const file = gist.files && gist.files[GIST_FILENAME];
+      if (!file || typeof file.content !== 'string') {
+        throw new Error('Gist file not found or content is not a string');
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(file.content);
+      } catch (e) {
+        throw new Error('Gist content JSON parse failed');
+      }
+
+      _cache = _validate(parsed);
+      return _cache;
     } catch (e) {
+      console.error('WatchlistStore _load error, falling back to default:', e);
       _cache = { ...DEFAULT_DATA, lists: { ...DEFAULT_DATA.lists }, list_order: [...DEFAULT_DATA.list_order] };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(_cache));
       return _cache;
     }
-
-    _cache = _validate(parsed);
-    const normalized = JSON.stringify(_cache);
-    if (normalized !== raw) {
-      localStorage.setItem(STORAGE_KEY, normalized);
-    }
-    return _cache;
   }
 
   /**
-   * 雙寫：記憶體快取 + localStorage
+   * 寫入：記憶體快取 + 遠端 Gist PATCH（若有 PAT 且有 GIST_ID）
    * @param {{lists:Object, list_order:string[], active_list:string}} data
    */
-  function _save(data) {
+  async function _save(data) {
     _cache = data;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     _notify();
+
+    // 唯讀或無 GIST_ID，不寫遠端
+    if (isReadOnly() || !GIST_ID) return;
+
+    const pat = localStorage.getItem('GH_GIST_PAT');
+    if (!pat) return;
+
+    try {
+      const res = await fetch(`${GIST_API_BASE}/${GIST_ID}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `token ${pat}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          files: {
+            [GIST_FILENAME]: { content: JSON.stringify(data) }
+          }
+        })
+      });
+
+      if (!res.ok) {
+        console.error('WatchlistStore _save PATCH failed:', res.status, await res.text().catch(() => ''));
+      }
+    } catch (e) {
+      console.error('WatchlistStore _save network error:', e);
+    }
   }
 
   /**
@@ -148,11 +186,27 @@ window.WatchlistStore = (() => {
   // ──────────────────────────────────────────────
 
   /**
-   * 取得所有清單（依 list_order 排序）
-   * @returns {Object<string, string[]>} { 清單名: [股票代號, ...] }
+   * 是否為唯讀模式（無 PAT 時，變更僅在 memory，不寫 Gist）
+   * @returns {boolean}
    */
-  function getAllLists() {
-    const data = _load();
+  function isReadOnly() {
+    return !localStorage.getItem('GH_GIST_PAT');
+  }
+
+  /**
+   * 初始化：觸發首次遠端載入（或 fallback）
+   * @returns {Promise<void>}
+   */
+  async function init() {
+    await _load();
+  }
+
+  /**
+   * 取得所有清單（依 list_order 排序）
+   * @returns {Promise<Object<string, string[]>>} { 清單名: [股票代號, ...] }
+   */
+  async function getAllLists() {
+    const data = await _load();
     const lists = _deepCloneLists(data.lists);
     // 建立依 order 排序的新物件（ES6 以後物件 key 順序可保留 insertion order）
     const ordered = {};
@@ -172,18 +226,19 @@ window.WatchlistStore = (() => {
 
   /**
    * 取得當前 active 清單名稱
-   * @returns {string}
+   * @returns {Promise<string>}
    */
-  function getActiveListName() {
-    return _load().active_list;
+  async function getActiveListName() {
+    const data = await _load();
+    return data.active_list;
   }
 
   /**
    * 取得當前 active 清單的股票代號陣列
-   * @returns {string[]}
+   * @returns {Promise<string[]>}
    */
-  function getActiveIds() {
-    const data = _load();
+  async function getActiveIds() {
+    const data = await _load();
     return [...(data.lists[data.active_list] || [])];
   }
 
@@ -191,10 +246,10 @@ window.WatchlistStore = (() => {
    * 檢查特定股票是否在指定清單中
    * @param {string} listName - 清單名稱
    * @param {string} stockId - 股票代號
-   * @returns {boolean}
+   * @returns {Promise<boolean>}
    */
-  function isInList(listName, stockId) {
-    const data = _load();
+  async function isInList(listName, stockId) {
+    const data = await _load();
     const arr = data.lists[listName];
     if (!arr) return false;
     return arr.includes(String(stockId));
@@ -203,10 +258,10 @@ window.WatchlistStore = (() => {
   /**
    * 檢查特定股票是否在任何清單中
    * @param {string} stockId - 股票代號
-   * @returns {boolean}
+   * @returns {Promise<boolean>}
    */
-  function isStockInAnyList(stockId) {
-    const data = _load();
+  async function isStockInAnyList(stockId) {
+    const data = await _load();
     const sid = String(stockId);
     return Object.values(data.lists).some(arr => arr.includes(sid));
   }
@@ -214,41 +269,43 @@ window.WatchlistStore = (() => {
   /**
    * 切換當前 active 清單
    * @param {string} name - 清單名稱（必須存在於 lists 中）
+   * @returns {Promise<void>}
    */
-  function setActiveList(name) {
-    const data = _load();
+  async function setActiveList(name) {
+    const data = await _load();
     if (!data.lists[name]) return;
     if (data.active_list === name) return;
     data.active_list = name;
-    _save(data);
+    await _save(data);
   }
 
   /**
    * 建立新清單
    * @param {string} name - 清單名稱
-   * @returns {boolean} 成功回傳 true，失敗回傳 false
+   * @returns {Promise<boolean>} 成功回傳 true，失敗回傳 false
    */
-  function createList(name) {
+  async function createList(name) {
     if (!name || typeof name !== 'string' || !name.trim()) return false;
     const trimmed = name.trim();
 
     if (trimmed.length > 20) return false;
 
-    const data = _load();
+    const data = await _load();
     if (data.lists[trimmed]) return false;
 
     data.lists[trimmed] = [];
     data.list_order.push(trimmed);
-    _save(data);
+    await _save(data);
     return true;
   }
 
   /**
    * 刪除指定清單
    * @param {string} name - 清單名稱
+   * @returns {Promise<void>}
    */
-  function deleteList(name) {
-    const data = _load();
+  async function deleteList(name) {
+    const data = await _load();
     if (!data.lists[name]) return;
 
     const listNames = Object.keys(data.lists);
@@ -263,47 +320,50 @@ window.WatchlistStore = (() => {
       data.active_list = data.list_order[0];
     }
 
-    _save(data);
+    await _save(data);
   }
 
   /**
    * 將股票代號加入指定清單
    * @param {string} listName - 清單名稱
    * @param {string} stockId - 股票代號
+   * @returns {Promise<void>}
    */
-  function addToList(listName, stockId) {
-    const data = _load();
+  async function addToList(listName, stockId) {
+    const data = await _load();
     if (!data.lists[listName]) return;
     const sid = String(stockId);
     const arr = data.lists[listName];
     if (arr.includes(sid)) return;
     arr.push(sid);
-    _save(data);
+    await _save(data);
   }
 
   /**
    * 將股票代號自指定清單移除
    * @param {string} listName - 清單名稱
    * @param {string} stockId - 股票代號
+   * @returns {Promise<void>}
    */
-  function removeFromList(listName, stockId) {
-    const data = _load();
+  async function removeFromList(listName, stockId) {
+    const data = await _load();
     if (!data.lists[listName]) return;
     const sid = String(stockId);
     const arr = data.lists[listName];
     const idx = arr.indexOf(sid);
     if (idx === -1) return;
     arr.splice(idx, 1);
-    _save(data);
+    await _save(data);
   }
 
   /**
    * 移動清單的顯示順序
    * @param {number} fromIndex - 目前索引
    * @param {number} toIndex - 目標索引
+   * @returns {Promise<void>}
    */
-  function moveList(fromIndex, toIndex) {
-    const data = _load();
+  async function moveList(fromIndex, toIndex) {
+    const data = await _load();
     const order = data.list_order;
     if (fromIndex < 0 || fromIndex >= order.length) return;
     if (toIndex < 0 || toIndex >= order.length) return;
@@ -311,22 +371,22 @@ window.WatchlistStore = (() => {
 
     const [moved] = order.splice(fromIndex, 1);
     order.splice(toIndex, 0, moved);
-    _save(data);
+    await _save(data);
   }
 
   /**
    * 重新命名清單
    * @param {string} oldName - 原始清單名稱
    * @param {string} newName - 新清單名稱
-   * @returns {boolean} 成功回傳 true，失敗回傳 false
+   * @returns {Promise<boolean>} 成功回傳 true，失敗回傳 false
    */
-  function renameList(oldName, newName) {
+  async function renameList(oldName, newName) {
     if (!newName || typeof newName !== 'string' || !newName.trim()) return false;
     const trimmed = newName.trim();
 
     if (trimmed.length > 20) return false;
 
-    const data = _load();
+    const data = await _load();
     if (!data.lists[oldName]) return false;
     if (oldName === trimmed) return false;
     if (data.lists[trimmed]) return false; // 新名稱已存在
@@ -344,7 +404,7 @@ window.WatchlistStore = (() => {
       data.active_list = trimmed;
     }
 
-    _save(data);
+    await _save(data);
     return true;
   }
 
@@ -353,9 +413,10 @@ window.WatchlistStore = (() => {
    * @param {string} listName - 清單名稱
    * @param {number} fromIndex - 目前索引
    * @param {number} toIndex - 目標索引
+   * @returns {Promise<void>}
    */
-  function moveInList(listName, fromIndex, toIndex) {
-    const data = _load();
+  async function moveInList(listName, fromIndex, toIndex) {
+    const data = await _load();
     const arr = data.lists[listName];
     if (!arr) return;
     if (fromIndex < 0 || fromIndex >= arr.length) return;
@@ -364,18 +425,15 @@ window.WatchlistStore = (() => {
 
     const [moved] = arr.splice(fromIndex, 1);
     arr.splice(toIndex, 0, moved);
-    _save(data);
+    await _save(data);
   }
-
-  // ──────────────────────────────────────────────
-  // 初始化：觸發首次 _load() 以建立 cache
-  // ──────────────────────────────────────────────
-  _load();
 
   // ──────────────────────────────────────────────
   // Public interface
   // ──────────────────────────────────────────────
   return {
+    isReadOnly,
+    init,
     getAllLists,
     getActiveListName,
     getActiveIds,
