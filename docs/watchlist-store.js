@@ -16,6 +16,7 @@ window.WatchlistStore = (() => {
   const GIST_ID = window.GIST_ID || 'b94daabf1616008aa1bbe10839a27df9';
   const GIST_FILENAME = 'watchlist.json';
   const GIST_API_BASE = 'https://api.github.com/gists';
+  const LS_ACTIVE_LIST_KEY = 'WATCHLIST_ACTIVE_LIST';
 
   const DEFAULT_DATA = {
     lists: {
@@ -95,9 +96,13 @@ window.WatchlistStore = (() => {
   async function _load() {
     if (_cache !== null) return _cache;
 
+    // 讀取 localStorage 中的 active_list（跨 session 記憶，不與其他人共享）
+    const lsActive = localStorage.getItem(LS_ACTIVE_LIST_KEY);
+
     // 若無 GIST_ID，直接使用預設資料作為 memory-only 模式
     if (!GIST_ID) {
       _cache = { ...DEFAULT_DATA, lists: { ...DEFAULT_DATA.lists }, list_order: [...DEFAULT_DATA.list_order] };
+      _cache.active_list = lsActive || DEFAULT_DATA.active_list;
       return _cache;
     }
 
@@ -119,10 +124,21 @@ window.WatchlistStore = (() => {
       }
 
       _cache = _validate(parsed);
+
+      // 用 localStorage 中的 active_list 覆蓋 Gist 可能殘留的值（舊資料可能帶 active_list）
+      if (lsActive && _cache.lists[lsActive]) {
+        _cache.active_list = lsActive;
+      } else if (!_cache.lists[_cache.active_list]) {
+        // localStorage 無值或已無效時，fallback 到第一個 list
+        const listNames = Object.keys(_cache.lists);
+        if (listNames.length > 0) _cache.active_list = listNames[0];
+      }
+
       return _cache;
     } catch (e) {
       console.error('WatchlistStore _load error, falling back to default:', e);
       _cache = { ...DEFAULT_DATA, lists: { ...DEFAULT_DATA.lists }, list_order: [...DEFAULT_DATA.list_order] };
+      _cache.active_list = lsActive || DEFAULT_DATA.active_list;
       return _cache;
     }
   }
@@ -132,6 +148,11 @@ window.WatchlistStore = (() => {
    * @param {{lists:Object, list_order:string[], active_list:string}} data
    */
   async function _save(data) {
+    // 將 active_list 寫入 localStorage，不放入 Gist
+    if (typeof data.active_list === 'string') {
+      localStorage.setItem(LS_ACTIVE_LIST_KEY, data.active_list);
+    }
+
     _cache = data;
     _notify();
 
@@ -140,6 +161,9 @@ window.WatchlistStore = (() => {
 
     const pat = localStorage.getItem('GH_GIST_PAT');
     if (!pat) return;
+
+    // 寫入 Gist 時剝除 active_list，只寫 lists + list_order (共享資料不包含個人偏好)
+    const gistPayload = { lists: data.lists, list_order: data.list_order };
 
     try {
       const res = await fetch(`${GIST_API_BASE}/${GIST_ID}`, {
@@ -150,7 +174,7 @@ window.WatchlistStore = (() => {
         },
         body: JSON.stringify({
           files: {
-            [GIST_FILENAME]: { content: JSON.stringify(data) }
+            [GIST_FILENAME]: { content: JSON.stringify(gistPayload) }
           }
         })
       });

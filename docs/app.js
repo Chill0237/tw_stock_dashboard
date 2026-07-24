@@ -148,6 +148,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const _fullStatusPromise = fetch("./api/status.json").then(r => r.json()).catch(() => null);
 
     buildCards();
+    initActiveTab();
     setupTabListeners();
     setupWatchlistListeners();
     loadDropdownDates();
@@ -195,12 +196,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     // ──────────────────────────────────────────
     // 2. 頁籤切換
     // ──────────────────────────────────────────
+    function initActiveTab() {
+        const buttons = document.querySelectorAll(".tab-btn");
+        const contents = document.querySelectorAll(".tab-content");
+        const tabId = localStorage.getItem('ACTIVE_TAB') || 'tab-buy-amount';
+
+        const btn = Array.from(buttons).find(b => b.dataset.tab === tabId);
+        const target = document.getElementById(tabId);
+
+        if (btn && target) {
+            buttons.forEach(b => {
+                b.classList.remove("border-emerald-500", "text-emerald-500", "dark:text-emerald-500");
+                b.classList.add("border-transparent", "text-slate-400", "dark:text-slate-400");
+            });
+            btn.classList.remove("border-transparent", "text-slate-400", "dark:text-slate-400");
+            btn.classList.add("border-emerald-500", "text-emerald-500", "dark:text-emerald-500");
+            contents.forEach(c => c.classList.add("hidden"));
+            target.classList.remove("hidden");
+
+            // 若恢復的是自選頁籤，主動觸發下拉選單填充與表格渲染
+            if (tabId === 'tab-watchlist') {
+                const ws = window.WatchlistStore;
+                if (ws) populateWatchlistSelectDropdown(ws);
+                fetchAndRenderWatchlist();
+            }
+        }
+    }
+
     function setupTabListeners() {
         const buttons = document.querySelectorAll(".tab-btn");
         const contents = document.querySelectorAll(".tab-content");
 
         buttons.forEach(btn => {
             btn.addEventListener("click", () => {
+                localStorage.setItem('ACTIVE_TAB', btn.dataset.tab);
+
                 buttons.forEach(b => {
                     b.classList.remove("border-emerald-500", "text-emerald-500", "dark:text-emerald-500");
                     b.classList.add("border-transparent", "text-slate-400", "dark:text-slate-400");

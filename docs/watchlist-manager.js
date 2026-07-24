@@ -265,9 +265,6 @@ window.WatchlistManagerModal = (() => {
 
     await ws.init();
 
-    // 同步 active list
-    _currentListName = await ws.getActiveListName();
-
     // 確保股票 index 已載入
     _loadStockIndex();
 
@@ -506,22 +503,17 @@ window.WatchlistManagerModal = (() => {
   // ──────────────────────────────────────────────
   async function _renderRightPanel(ws) {
     const readOnly = ws.isReadOnly();
-    // 決定當前清單
-    let listName = _currentListName;
+    // 直接從 Store 的 active_list 取得當前清單（localStorage 記憶）
     const allLists = await ws.getAllLists();
     const listNames = Object.keys(allLists);
 
-    // fallback：若當前清單無效或不存在
-    if (!listName || !allLists[listName]) {
-      listName = await ws.getActiveListName();
-    }
-    // 再 fallback：若 active 也不存在
+    let listName = await ws.getActiveListName();
+
+    // fallback：若 active 不存在於 lists 中
     if (!allLists[listName] && listNames.length > 0) {
       listName = listNames[0];
       await ws.setActiveList(listName);
     }
-
-    _currentListName = listName;
 
     // 標題
     if (els.rightTitle) {
@@ -729,7 +721,7 @@ window.WatchlistManagerModal = (() => {
     const raw = input.value.trim();
     if (!raw) return;
 
-    const listName = _currentListName;
+    const listName = await ws.getActiveListName();
     if (!listName) return;
 
     // 分割：逗號或空白
@@ -854,11 +846,13 @@ window.WatchlistManagerModal = (() => {
   // ──────────────────────────────────────────────
   // 右側標題 Inline 編輯 handler
   // ──────────────────────────────────────────────
-  function _handleEditListTitle() {
+  async function _handleEditListTitle() {
     const ws = _store();
     const titleEl = els.rightTitle;
-    const oldName = _currentListName;
-    if (!titleEl || !oldName || !ws) return;
+    if (!titleEl || !ws) return;
+
+    const oldName = await ws.getActiveListName();
+    if (!oldName) return;
 
     // 隱藏 h3 文字內容
     titleEl.textContent = '';
@@ -876,7 +870,7 @@ window.WatchlistManagerModal = (() => {
 
     const cleanup = () => {
       if (titleEl.contains(input)) titleEl.removeChild(input);
-      titleEl.textContent = _currentListName || '';
+      titleEl.textContent = oldName;
     };
 
     const commit = async () => {
@@ -924,13 +918,12 @@ window.WatchlistManagerModal = (() => {
     const listNames = Object.keys(allLists);
     if (listNames.length <= 1) return;
 
-    const name = _currentListName;
+    const name = await ws.getActiveListName();
     if (!name || !allLists[name]) return;
 
     if (!confirm(`確定要刪除清單「${name}」嗎？此操作無法復原。`)) return;
 
     await ws.deleteList(name);
-    _currentListName = null;
   }
 
   // ──────────────────────────────────────────────
