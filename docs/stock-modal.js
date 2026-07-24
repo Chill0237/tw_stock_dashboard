@@ -207,8 +207,8 @@ window.StockModal = (() => {
   function updateModeUI() {
     if (!els.btnModeMa || !els.btnModeBb) return;
     const isMA = currentMode === 'ma';
-    els.btnModeMa.className = isMA ? 'px-2 py-0.5 rounded bg-slate-300 dark:bg-gray-200 text-gray-800 dark:text-gray-800' : 'px-2 py-0.5 rounded text-gray-500 dark:text-gray-400';
-    els.btnModeBb.className = isMA ? 'px-2 py-0.5 rounded text-gray-500 dark:text-gray-400' : 'px-2 py-0.5 rounded bg-slate-300 dark:bg-gray-200 text-gray-800 dark:text-gray-800';
+    els.btnModeMa.className = isMA ? 'px-2 py-0.5 rounded bg-slate-300 dark:bg-slate-600 text-gray-800 dark:text-slate-200' : 'px-2 py-0.5 rounded text-gray-500 dark:text-gray-400';
+    els.btnModeBb.className = isMA ? 'px-2 py-0.5 rounded text-gray-500 dark:text-gray-400' : 'px-2 py-0.5 rounded bg-slate-300 dark:bg-slate-600 text-gray-800 dark:text-slate-200';
     // 隱藏/顯示 MA 膠囊按鈕容器
     if (els.maCheckboxes) {
       els.maCheckboxes.style.display = isMA ? '' : 'none';
@@ -848,7 +848,7 @@ window.StockModal = (() => {
       options: {
         responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
         plugins: { legend: { position: 'top', labels: { color: t.legendColor, font: { size: 10 }, boxWidth: 12, padding: 8 } }, tooltip: { backgroundColor: t.tooltipBg, titleColor: t.tooltipTitle, bodyColor: t.tooltipBody, borderColor: t.tooltipBorder, borderWidth: 1, callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(0)} 張` } } },
-        scales: { x: { ticks: { color: t.tickColor, font: { size: 9 }, maxRotation: 45 }, grid: { color: t.gridColor } }, y: { ticks: { color: t.yTickColor, font: { size: 9 } }, grid: { color: t.yGridColor }, title: { display: true, text: '千張', color: t.yTickColor, font: { size: 9 } } } },
+        scales: { x: { ticks: { color: t.tickColor, font: { size: 9 }, maxRotation: 45 }, grid: { color: t.gridColor } }, y: { ticks: { color: t.yTickColor, font: { size: 9 } }, grid: { color: t.yGridColor } } },
       },
     });
     chartJsType = 'institutional';
@@ -1000,7 +1000,7 @@ window.StockModal = (() => {
           `height:17px;width:${countPct.toFixed(1)}%;min-width:2px;` +
           `background:${barColor};border-radius:4px 0 0 4px;` +
           `position:relative;display:flex;align-items:center;justify-content:flex-end;padding-right:2px;`;
-        leftBar.innerHTML = `<span class="text-white dark:text-gray-800" style="font-size:10px;white-space:nowrap;">${countFmt}</span>`;
+        leftBar.innerHTML = `<span class="text-gray-800 dark:text-white" style="font-size:10px;white-space:nowrap;">${countFmt}</span>`;
         leftBarWrap.appendChild(leftBar);
         row.appendChild(leftBarWrap);
 
@@ -1021,7 +1021,7 @@ window.StockModal = (() => {
           `height:17px;width:${ratioPct.toFixed(1)}%;min-width:2px;` +
           `background:${barColor};border-radius:0 4px 4px 0;` +
           `position:relative;display:flex;align-items:center;padding-left:2px;`;
-        rightBar.innerHTML = `<span class="text-white dark:text-gray-800" style="font-size:10px;white-space:nowrap;">${ratioFmt}</span>`;
+        rightBar.innerHTML = `<span class="text-gray-800 dark:text-white" style="font-size:10px;white-space:nowrap;">${ratioFmt}</span>`;
         rightBarWrap.appendChild(rightBar);
         row.appendChild(rightBarWrap);
 
