@@ -97,7 +97,7 @@ window.StockModal = (() => {
         <div class="shrink-0 flex items-center justify-between px-4 py-2 border-b border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-900/95">
           <div id="modal-header-info" class="flex items-center gap-3 min-w-0"><span class="text-lg font-bold text-gray-900 dark:text-slate-100">載入中...</span></div>
           <div class="flex items-center gap-2 shrink-0">
-            <div id="modal-btn-watchlist-wrapper" class="relative">
+            <div id="modal-btn-watchlist-wrapper" class="relative hidden">
               <button id="modal-btn-watchlist" title="加入自選" class="watchlist-btn text-xs px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>自選</button>
               <div id="watchlist-dropdown" class="absolute hidden right-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg rounded py-1 z-[150] w-[220px]" style="top:100%;margin-top:2px;"></div>
             </div>
@@ -247,7 +247,7 @@ window.StockModal = (() => {
     const dd = els.watchlistDropdown;
     if (!dd) return;
     const store = getWatchlistStore();
-    if (!store) { dd.innerHTML = ''; dd.classList.add('hidden'); return; }
+    if (!store || store.isReadOnly()) { dd.innerHTML = ''; dd.classList.add('hidden'); return; }
     const allLists = await store.getAllLists();
     const listNames = Object.keys(allLists);
     if (!listNames.length) { dd.innerHTML = ''; dd.classList.add('hidden'); return; }
@@ -372,6 +372,14 @@ window.StockModal = (() => {
       return;
     }
 
+    const readOnly = store.isReadOnly();
+    const wrapper = document.getElementById('modal-btn-watchlist-wrapper');
+    if (readOnly) {
+      if (wrapper) wrapper.classList.add('hidden');
+      return;
+    }
+    if (wrapper) wrapper.classList.remove('hidden');
+
     const inAnyList = await store.isStockInAnyList(sid);
 
     if (_dropdownOpen) {
@@ -397,6 +405,8 @@ window.StockModal = (() => {
   async function toggleWatchlistDropdown() {
     const dd = els.watchlistDropdown;
     if (!dd) return;
+    const store = getWatchlistStore();
+    if (!store || store.isReadOnly()) return;
     if (dd.classList.contains('hidden')) {
       await renderWatchlistDropdown();
       dd.classList.remove('hidden');
