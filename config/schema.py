@@ -28,6 +28,7 @@ COLUMN_MAP = {
     # 技術面
     "漲跌(+/-)": "price_change_sign",
     "漲跌價差": "price_change",
+    "漲跌": "price_change",              # TPEx 上櫃價量
     "漲跌幅(%)": "price_change_pct",
     "振幅(%)": "amplitude",
     "週轉率(%)": "turnover_rate",
