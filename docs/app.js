@@ -88,7 +88,6 @@
 })();
 
 document.addEventListener("DOMContentLoaded", async () => {
-    const dateSelect = document.getElementById("date-select");
     const statusBar = document.getElementById("data-status");
 
     // 確保 WatchlistStore 已完成 Gist 載入（或 fallback）
@@ -141,6 +140,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     const WATCHLIST_SORT_STATE = { field: null, asc: null };
     let _snapshotCache = null;
     let _watchlistDirty = false;
+    let _currentTabId = localStorage.getItem('ACTIVE_TAB') || 'tab-buy-amount';
+    let _selectedDate = "latest";
+
+    function updateDateSelectorVisibility() {
+        const label = document.getElementById("date-select-label");
+        const btn = document.getElementById("date-select-btn");
+        if (_currentTabId === "tab-watchlist") {
+            _selectedDate = "latest";
+            if (label) label.textContent = "latest";
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add("opacity-50", "cursor-not-allowed");
+                btn.classList.remove("hover:bg-slate-100", "dark:hover:bg-slate-700");
+            }
+        } else {
+            if (btn) {
+                btn.disabled = false;
+                btn.classList.remove("opacity-50", "cursor-not-allowed");
+                btn.classList.add("hover:bg-slate-100", "dark:hover:bg-slate-700");
+            }
+        }
+    }
 
     // ──────────────────────────────────────────
     // 初始化
@@ -214,6 +235,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             contents.forEach(c => c.classList.add("hidden"));
             target.classList.remove("hidden");
 
+            _currentTabId = tabId;
+            updateDateSelectorVisibility();
+
             // 若恢復的是自選頁籤，主動觸發下拉選單填充與表格渲染
             if (tabId === 'tab-watchlist') {
                 const ws = window.WatchlistStore;
@@ -243,6 +267,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const target = document.getElementById(btn.dataset.tab);
                 if (target) target.classList.remove("hidden");
 
+                _currentTabId = btn.dataset.tab;
+                updateDateSelectorVisibility();
+
                 // 切換至自選頁籤時觸發渲染（含 dirty flag 檢查）
                 if (btn.dataset.tab === "tab-watchlist") {
                     if (_watchlistDirty) {
@@ -258,20 +285,85 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ──────────────────────────────────────────
-    // 3. 載入日期下拉選單
+    // 3. 日期下拉選單（自訂 UI）
     // ──────────────────────────────────────────
+    const dateSelectLabel = document.getElementById("date-select-label");
+    const dateSelectDropdown = document.getElementById("date-select-dropdown");
+    const dateSelectBtn = document.getElementById("date-select-btn");
+
+    function initDateSelector() {
+        if (!dateSelectBtn || !dateSelectDropdown || !dateSelectLabel) return;
+
+        const HOVER_CLASSES = ["hover:bg-slate-100", "dark:hover:bg-slate-700"];
+
+        function openDropdown() {
+            dateSelectDropdown.classList.remove("hidden");
+            dateSelectBtn.classList.remove(...HOVER_CLASSES);
+        }
+        function closeDropdown() {
+            dateSelectDropdown.classList.add("hidden");
+            if (!dateSelectBtn.disabled) {
+                dateSelectBtn.classList.add(...HOVER_CLASSES);
+            }
+        }
+
+        // 切換 dropdown
+        dateSelectBtn.addEventListener("click", e => {
+            e.stopPropagation();
+            if (dateSelectBtn.disabled) return;
+            const isHidden = dateSelectDropdown.classList.contains("hidden");
+            if (isHidden) {
+                openDropdown();
+            } else {
+                closeDropdown();
+            }
+        });
+
+        // 點擊外部關閉
+        document.addEventListener("click", e => {
+            if (!e.target.closest("#date-select-wrapper")) {
+                closeDropdown();
+            }
+        });
+
+        dateSelectDropdown.addEventListener("click", e => {
+            const item = e.target.closest("[data-date-value]");
+            if (!item) return;
+            const dateVal = item.dataset.dateValue;
+            _selectedDate = dateVal;
+            dateSelectLabel.textContent = dateVal === "latest" ? "latest" : `${dateVal.slice(0,4)}-${dateVal.slice(4,6)}-${dateVal.slice(6,8)}`;
+            closeDropdown();
+            fetchAndRender(dateVal);
+            localStorage.setItem("SELECTED_DATE", dateVal);
+        });
+    }
+
     async function loadDropdownDates() {
         try {
             const res = await fetch("./api/dates.json");
             if (!res.ok) return;
             const dates = await res.json();
-            dateSelect.innerHTML = '<option value="latest">latest</option>';
+
+            // 建立 dropdown items
+            const fragments = [];
+            fragments.push(`<div class="px-2.5 py-1.5 text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-900 text-slate-800 dark:text-slate-200" data-date-value="latest">latest</div>`);
             dates.forEach(date => {
-                const opt = document.createElement("option");
-                opt.value = date;
-                opt.textContent = `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}`;
-                dateSelect.appendChild(opt);
+                const label = `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}`;
+                fragments.push(`<div class="px-2.5 py-1.5 text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-900 text-slate-800 dark:text-slate-200" data-date-value="${date}">${label}</div>`);
             });
+            dateSelectDropdown.innerHTML = fragments.join("");
+
+            // 恢復上次選取日期（自選 tab 強制 latest）
+            const saved = (_currentTabId === "tab-watchlist")
+                ? "latest"
+                : (localStorage.getItem("SELECTED_DATE") || "latest");
+            _selectedDate = saved;
+            dateSelectLabel.textContent = saved === "latest" ? "latest" : `${saved.slice(0,4)}-${saved.slice(4,6)}-${saved.slice(6,8)}`;
+
+            initDateSelector();
+
+            // 恢復日期後觸發渲染
+            fetchAndRender(_selectedDate);
         } catch (e) {
             console.error("dates.json load error:", e);
         }
@@ -428,11 +520,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ──────────────────────────────────────────
-    // 8. 日期切換事件
+    // 8. 日期選擇器於自選 tab 時的顯示/隱藏（已移至 section 0，此處保留初始化呼叫）
     // ──────────────────────────────────────────
-    dateSelect.addEventListener("change", (e) => {
-        fetchAndRender(e.target.value);
-    });
+    updateDateSelectorVisibility();
 
     // ──────────────────────────────────────────
     // 9. Watchlist: 設定監聽器

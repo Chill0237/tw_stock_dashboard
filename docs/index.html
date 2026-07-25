@@ -31,9 +31,13 @@
                     <div id="search-dropdown" class="absolute top-full left-0 right-0 bg-white border border-slate-200 max-h-60 overflow-y-auto hidden z-[200] dark:bg-slate-900 dark:border-slate-700"></div>
                 </div>
                 <span class="text-xs text-slate-400 dark:text-slate-500">日期</span>
-                <select id="date-select" class="bg-white border border-slate-200 text-slate-800 px-2 py-1 text-xs focus:outline-none dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200">
-                    <option value="latest">latest</option>
-                </select>
+                <div id="date-select-wrapper" class="relative">
+                    <button id="date-select-btn" class="flex items-center justify-between gap-1.5 px-2.5 py-1 text-xs w-[120px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm rounded text-slate-800 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <span id="date-select-label" class="truncate">latest</span>
+                        <svg class="w-3 h-3 shrink-0 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div id="date-select-dropdown" class="absolute hidden right-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg rounded py-1 z-[150] w-[140px]" style="top:100%;margin-top:2px;"></div>
+                </div>
 
                 <!-- Theme Toggle: 雙按鈕群組（仿 MA/BB 切換樣式） -->
                 <div class="flex border border-slate-200 rounded dark:border-slate-700 overflow-hidden" title="切換深色/淺色模式">
