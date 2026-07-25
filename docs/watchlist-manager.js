@@ -73,6 +73,41 @@ window.WatchlistManagerModal = (() => {
   }
 
   // ──────────────────────────────────────────────
+  // 股票名稱規範化（移除尾綴：*、-KY、KY、DR）
+  // ──────────────────────────────────────────────
+  function _normalizeStockName(name) {
+    if (!name) return '';
+    return name.replace(/[\*\-]?KY$|DR$|\*$/gi, '').trim().toLowerCase();
+  }
+
+  // ──────────────────────────────────────────────
+  // Autocomplete 候選資料快取
+  // ──────────────────────────────────────────────
+  let _stockAutocompleteData = null;
+
+  function _buildAutocompleteData() {
+    if (_stockAutocompleteData) return _stockAutocompleteData;
+    if (!_stockIndexMap) return [];
+    const seen = new Set();
+    _stockAutocompleteData = [];
+    Object.entries(_stockIndexMap).forEach(([key, val]) => {
+      if (/^\d+/.test(key)) {
+        const id = key;
+        const name = val;
+        if (!seen.has(id)) {
+          seen.add(id);
+          _stockAutocompleteData.push({
+            id,
+            name,
+            normalized: _normalizeStockName(name)
+          });
+        }
+      }
+    });
+    return _stockAutocompleteData;
+  }
+
+  // ──────────────────────────────────────────────
   // 初始化：建立 DOM 並注入 <body> 末尾
   // ──────────────────────────────────────────────
   function init() {
@@ -151,13 +186,17 @@ window.WatchlistManagerModal = (() => {
 
               <!-- 新增個股輸入 -->
               <div class="shrink-0 mt-3">
-                <div class="flex items-stretch gap-2">
-                  <input id="wm-new-stock-input" type="text" placeholder="輸入股票代號或名稱（逗號分隔）..."
-                    class="flex-1 px-2.5 py-1.5 text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-300 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400">
-                  <button id="wm-new-stock-btn"
-                    class="shrink-0 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300 border border-slate-300 dark:border-slate-600 px-3 py-1.5 rounded flex items-center justify-center transition-colors">
-                    ${ICON_PLUS}
-                  </button>
+                <div class="relative">
+                  <div class="flex items-stretch gap-2">
+                    <input id="wm-new-stock-input" type="text" placeholder="輸入股票代號或名稱（逗號分隔）..."
+                      class="flex-1 px-2.5 py-1.5 text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-300 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400">
+                    <button id="wm-new-stock-btn"
+                      class="shrink-0 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300 border border-slate-300 dark:border-slate-600 px-3 py-1.5 rounded flex items-center justify-center transition-colors">
+                      ${ICON_PLUS}
+                    </button>
+                  </div>
+                  <!-- Autocomplete 下拉選單 -->
+                  <div id="wm-autocomplete-dropdown" class="absolute hidden bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg rounded py-1 z-[150] w-full max-h-40 overflow-y-auto" style="top:100%;margin-top:2px;left:0;"></div>
                 </div>
                 <div class="relative h-4 mt-1">
                   <div id="wm-right-error" class="absolute top-0 left-0 text-[11px] text-rose-500 dark:text-rose-400 hidden"></div>
@@ -190,6 +229,7 @@ window.WatchlistManagerModal = (() => {
     els.rightStocks = document.getElementById('wm-right-stocks');
     els.newStockInput = document.getElementById('wm-new-stock-input');
     els.newStockBtn = document.getElementById('wm-new-stock-btn');
+    els.autocompleteDropdown = document.getElementById('wm-autocomplete-dropdown');
   }
 
   // ──────────────────────────────────────────────
@@ -217,7 +257,28 @@ window.WatchlistManagerModal = (() => {
 
     // 新增個股
     els.newStockBtn.addEventListener('click', async () => { await _handleNewStock(); });
-    els.newStockInput.addEventListener('keydown', async e => { if (e.key === 'Enter') await _handleNewStock(); });
+    els.newStockInput.addEventListener('keydown', async e => {
+      if (e.key === 'Enter') {
+        if (els.autocompleteDropdown) els.autocompleteDropdown.classList.add('hidden');
+        await _handleNewStock();
+      }
+    });
+
+    // Autocomplete：input 事件
+    els.newStockInput.addEventListener('input', () => _handleAutocompleteInput());
+    els.newStockInput.addEventListener('focus', () => {
+      if (els.newStockInput.value.trim()) _handleAutocompleteInput();
+    });
+    els.newStockInput.addEventListener('blur', () => {
+      setTimeout(() => {
+        if (els.autocompleteDropdown) els.autocompleteDropdown.classList.add('hidden');
+      }, 150);
+    });
+
+    // Autocomplete：dropdown 點選
+    if (els.autocompleteDropdown) {
+      els.autocompleteDropdown.addEventListener('mousedown', e => _handleAutocompleteClick(e));
+    }
 
     // 編輯清單名稱（右側標題）
     els.editListBtn.addEventListener('click', _handleEditListTitle);
@@ -750,10 +811,16 @@ window.WatchlistManagerModal = (() => {
           stockId = trimmed;
         }
       } else if (_stockIndexMap) {
-        // 可能是股票名稱 → 反向查 id
-        const resolvedId = _stockIndexMap[trimmed];
+        // 可能是股票名稱 → 反向查 id（先精確比對，再模糊比對）
+        let resolvedId = _stockIndexMap[trimmed];
         if (resolvedId && typeof resolvedId === 'string') {
           stockId = resolvedId;
+        } else {
+          // 模糊比對 fallback：規範化名稱後比對（國巨 → 國巨*、訊芯 → 訊芯-KY 等）
+          const norm = _normalizeStockName(trimmed);
+          const data = _buildAutocompleteData();
+          const match = data.find(d => d.normalized === norm);
+          if (match) stockId = match.id;
         }
       }
 
@@ -774,6 +841,98 @@ window.WatchlistManagerModal = (() => {
     } else if (addedCount > 0) {
       if (els.rightError) els.rightError.classList.add('hidden');
     }
+  }
+
+  // ──────────────────────────────────────────────
+  // Autocomplete input handler
+  // ──────────────────────────────────────────────
+  function _handleAutocompleteInput() {
+    const input = els.newStockInput;
+    const dd = els.autocompleteDropdown;
+    if (!input || !dd) return;
+
+    const raw = input.value;
+
+    // 分割 token 並檢查是否為多重輸入
+    const tokens = raw.split(/[,，、\s]+/).filter(Boolean);
+    // 多重輸入（有多個 token）→ 隱藏 autocomplete
+    if (tokens.length > 1) {
+      dd.classList.add('hidden');
+      return;
+    }
+
+    const query = (tokens[0] || raw).trim().toLowerCase();
+    if (query.length < 1) {
+      dd.classList.add('hidden');
+      return;
+    }
+
+    const data = _buildAutocompleteData();
+    if (!data.length) {
+      dd.classList.add('hidden');
+      return;
+    }
+
+    // 過濾：id 開頭匹配 或 normalized name 包含查詢字串
+    const normQuery = _normalizeStockName(query);
+    const results = data.filter(item => {
+      return item.id.startsWith(query) || item.normalized.includes(normQuery);
+    }).slice(0, 8);
+
+    if (results.length === 0) {
+      dd.classList.add('hidden');
+      return;
+    }
+
+    // 渲染 dropdown
+    dd.innerHTML = results.map(item => {
+      const escapedName = item.name.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>');
+      return `<div class="px-2.5 py-1 text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-900 text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700 last:border-b-0" data-stock-id="${item.id}"><span class="font-mono text-indigo-600 dark:text-indigo-400 mr-2">${item.id}</span>${escapedName}</div>`;
+    }).join('');
+
+    // 使用 fixed 定位避免被 Modal overflow:hidden 裁切
+    const inputRect = input.getBoundingClientRect();
+    dd.style.cssText = `position:fixed;top:${inputRect.bottom + 2}px;left:${inputRect.left}px;width:${inputRect.width}px;z-index:200;max-height:10rem;overflow-y:auto;`;
+    dd.classList.add('bg-white', 'dark:bg-slate-800', 'border', 'border-slate-200', 'dark:border-slate-700', 'shadow-lg', 'rounded', 'py-1');
+    dd.classList.remove('hidden');
+  }
+
+  // ──────────────────────────────────────────────
+  // Autocomplete 點選 handler（直接加入清單）
+  // ──────────────────────────────────────────────
+  async function _handleAutocompleteClick(e) {
+    const target = e.target.closest('[data-stock-id]');
+    if (!target) return;
+
+    const stockId = target.dataset.stockId;
+    const input = els.newStockInput;
+    const dd = els.autocompleteDropdown;
+    if (!input || !stockId) return;
+
+    // 隱藏 dropdown
+    if (dd) dd.classList.add('hidden');
+
+    const ws = _store();
+    if (!ws) return;
+
+    const listName = await ws.getActiveListName();
+    if (!listName) return;
+
+    // 取得 input 中除最後一個 token 以外的前綴，保留其他已輸入的代號
+    const raw = input.value;
+    const tokens = raw.split(/[,，、\s]+/).filter(Boolean);
+    if (tokens.length > 0) {
+      const lastToken = tokens[tokens.length - 1];
+      const lastIndex = raw.lastIndexOf(lastToken);
+      const prefix = raw.substring(0, lastIndex);
+      input.value = prefix.trimEnd();
+    } else {
+      input.value = '';
+    }
+
+    // 直接加入清單
+    await ws.addToList(listName, stockId);
+    input.focus();
   }
 
   // ──────────────────────────────────────────────
