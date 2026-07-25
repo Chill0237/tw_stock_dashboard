@@ -700,9 +700,11 @@ window.WatchlistManagerModal = (() => {
     const name = input.value.trim();
     if (!name) return;
 
+    // 在 async 操作前先清空 input，避免 _renderAll() 重建 DOM 後殘留舊文字
+    input.value = '';
+
     const ok = await ws.createList(name);
     if (ok) {
-      input.value = '';
       // 清除 error
       if (els.leftError) els.leftError.classList.add('hidden');
     } else {
@@ -720,6 +722,9 @@ window.WatchlistManagerModal = (() => {
 
     const raw = input.value.trim();
     if (!raw) return;
+
+    // 在 async 操作前先清空 input，避免 _renderAll() 重建 DOM 後殘留舊文字
+    input.value = '';
 
     const listName = await ws.getActiveListName();
     if (!listName) return;
@@ -760,12 +765,13 @@ window.WatchlistManagerModal = (() => {
       }
     }
 
-    // 處理 input 值與 error
+    // 處理 error；notFound 回寫到新 input（_renderAll 已重建 DOM）
     if (notFound.length > 0) {
-      input.value = notFound.join(' ');
+      // 重新取得 input 參照（_renderAll 已重建 DOM）
+      const newInput = document.getElementById('wm-new-stock-input');
+      if (newInput) newInput.value = notFound.join(' ');
       _showError(els.rightError, `找不到股票：${notFound.join(' ')}`);
     } else if (addedCount > 0) {
-      input.value = '';
       if (els.rightError) els.rightError.classList.add('hidden');
     }
   }
