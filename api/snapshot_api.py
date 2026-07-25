@@ -98,7 +98,7 @@ def export_daily_snapshot(date_str: str) -> str:
         l = _sanitize_value(low_price)
 
         # 漲跌幅 p: price_change / prev_close * 100
-        # prev_close = close_price - price_change（跌停為負值）
+        # prev_close = close_price - price_change（d_val 已於 transform 層合併正負號）
         p_val: Optional[float] = None
         if (
             c is not None

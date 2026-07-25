@@ -86,6 +86,31 @@ def standardize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df = apply_column_mapping(df)
     logger.debug(f"[standardize] 欄位對映後: {list(df.columns)}")
 
+    # Step 1.5: 合併 price_change_sign (+/-) 到 price_change
+    # TWSE MI_INDEX: price_change 為絕對值，正負號存在獨立的 price_change_sign 欄位
+    # TPEx: price_change 已直接攜帶正負號（+3.50 / -2.00），無 price_change_sign
+    if "price_change_sign" in df.columns and "price_change" in df.columns:
+        def _merge_sign(row):
+            d_val = row["price_change"]
+            sign = row["price_change_sign"]
+            if pd.isna(d_val) or pd.isna(sign):
+                return d_val
+            try:
+                d_float = float(d_val)
+                sign_str = str(sign).strip()
+                # TPEx 格式：price_change 本身已含 +/- 符號，不需再處理
+                if sign_str == "-" and not str(d_val).startswith("-"):
+                    return -abs(d_float)
+                elif sign_str == "+" and not str(d_val).startswith("+"):
+                    return abs(d_float)
+                # 空字串或異常值：保持原值
+                return d_val
+            except (ValueError, TypeError):
+                return d_val
+
+        df["price_change"] = df.apply(_merge_sign, axis=1)
+        df = df.drop(columns=["price_change_sign"])
+
     # Step 2: 數值欄位清洗（去逗號、型別轉換）
     df = clean_numeric_columns(df)
 
