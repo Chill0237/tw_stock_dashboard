@@ -11,6 +11,7 @@ import logging
 import os
 import re
 import sys
+import time
 from typing import List
 
 import pandas as pd
@@ -120,6 +121,7 @@ def main():
             try:
                 if backfill_margin(d):
                     success += 1
+                time.sleep(2)
             except Exception as e:
                 logger.error(f"  [{d}] 處理失敗: {e}", exc_info=True)
         logger.info(f"Step 1 完成: {success}/{len(margin_dates)} 日期成功\n")
