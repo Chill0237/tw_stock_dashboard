@@ -45,6 +45,17 @@ COLUMN_MAP = {
     "融券買進(張)": "mar_buy",
     "融券賣出(張)": "mar_sell",
     "融券現券償還(張)": "mar_cash_repay",
+    # TPEx 融資融券簡短中文欄位對照
+    "資餘額": "fin_balance",
+    "前資餘額(張)": "fin_prev_balance",
+    "資買": "fin_buy",
+    "資賣": "fin_sell",
+    "現償": "fin_cash_repay",
+    "券餘額": "mar_balance",
+    "前券餘額(張)": "mar_prev_balance",
+    "券買": "mar_buy",
+    "券賣": "mar_sell",
+    "券償": "mar_cash_repay",
 
     # 三大法人買賣超（TWSE T86 原始欄位，以「股數」為單位）
     "外陸資買賣超股數(不含外資自營商)": "foreign_buy_sell",
