@@ -15,14 +15,16 @@ from typing import List
 
 import pandas as pd
 
-# 確保專案根目錄在 sys.path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# 確保專案根目錄在 sys.path 中（支援從任意位置執行）
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from quant_system_v2.crawler.market_crawler import (
     fetch_twse_margin_trading,
     fetch_tpex_margin_trading,
 )
-from quant_system_v2.config.schema import standardize_dataframe
+from quant_system_v2.database.transform import standardize_dataframe
 from quant_system_v2.database.storage import save_dataframe
 from quant_system_v2.api.export_json import export_dashboard_json_safe
 from quant_system_v2.api.stock_api import generate_all
