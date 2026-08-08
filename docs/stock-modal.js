@@ -722,6 +722,7 @@ window.StockModal = (() => {
         ma20: p.ma20,
         ma60: p.ma60,
         ma120: p.ma120,
+        ma240: p.ma240,
         bband_upper: p.bband_upper,
         bband_lower: p.bband_lower,
       });
