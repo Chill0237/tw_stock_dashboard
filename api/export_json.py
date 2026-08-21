@@ -33,7 +33,7 @@ from typing import Optional
 
 import pandas as pd
 
-from quant_system_v2.config.settings import DEFAULT_TOP_N
+from quant_system_v2.config.settings import DEFAULT_TOP_N, DEFAULT_TOP_N_TDCC
 from quant_system_v2.database.storage import load_dataframe, load_recent_dataframes, load_dataframes_up_to
 from quant_system_v2.core.chip_analyzer import (
     institutional_buysell_summary,
@@ -492,7 +492,7 @@ def export_dashboard_json(
                 df_ratio_buy = df_large[df_large["大戶比例增幅"] > 0].copy()
                 df_ratio_buy = df_ratio_buy.sort_values(
                     "大戶比例增幅", ascending=False
-                ).head(DEFAULT_TOP_N)
+                ).head(DEFAULT_TOP_N_TDCC)
                 rankings["chip_large_ratio_buy"] = _df_to_safe_list(df_ratio_buy)
 
                 df_ratio_sell = df_large[df_large["大戶比例增幅"] < 0].copy()
@@ -501,14 +501,14 @@ def export_dashboard_json(
                 ].abs()
                 df_ratio_sell = df_ratio_sell.sort_values(
                     "大戶比例增幅", ascending=False
-                ).head(DEFAULT_TOP_N)
+                ).head(DEFAULT_TOP_N_TDCC)
                 rankings["chip_large_ratio_sell"] = _df_to_safe_list(df_ratio_sell)
 
                 # E2. 大戶人數增幅增加 / 減少
                 df_count_buy = df_large[df_large["大戶人數增幅"] > 0].copy()
                 df_count_buy = df_count_buy.sort_values(
                     "大戶人數增幅", ascending=False
-                ).head(DEFAULT_TOP_N)
+                ).head(DEFAULT_TOP_N_TDCC)
                 rankings["chip_large_count_buy"] = _df_to_safe_list(df_count_buy)
 
                 df_count_sell = df_large[df_large["大戶人數增幅"] < 0].copy()
@@ -517,7 +517,7 @@ def export_dashboard_json(
                 ].abs()
                 df_count_sell = df_count_sell.sort_values(
                     "大戶人數增幅", ascending=False
-                ).head(DEFAULT_TOP_N)
+                ).head(DEFAULT_TOP_N_TDCC)
                 rankings["chip_large_count_sell"] = _df_to_safe_list(df_count_sell)
 
                 logger.info(

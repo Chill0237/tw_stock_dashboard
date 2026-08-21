@@ -10,7 +10,7 @@ TDCC 集保股權分散分析模組（大戶籌碼變動）
   - 以「大戶比例增幅」降冪排序回傳前 top_n 名
 
 依賴：
-  - config.settings.DEFAULT_TOP_N（排名預設值）
+  - config.settings.DEFAULT_TOP_N_TDCC（排名預設值）
   - 僅 Pandas 矩陣運算，無磁碟 IO 或 API 請求
 
 禁止：
@@ -23,7 +23,7 @@ import pandas as pd
 import logging
 from typing import Optional
 
-from quant_system_v2.config.settings import DEFAULT_TOP_N
+from quant_system_v2.config.settings import DEFAULT_TOP_N_TDCC
 from quant_system_v2.utils.filters import filter_active_equities, filter_etf
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ _LARGE_LEVEL = 15
 
 def large_shareholder_rank(
     df_tdcc_history: pd.DataFrame,
-    top_n: int = DEFAULT_TOP_N,
+    top_n: int = DEFAULT_TOP_N_TDCC,
 ) -> pd.DataFrame:
     """
     計算大戶（>1,000 張）比例增幅與人數增幅排名。
