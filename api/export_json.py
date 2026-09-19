@@ -12,7 +12,7 @@ JSON Dashboard 匯出模組 — 28 項量化指標完整匯出
   B. 法人張數排行榜 (8)  — 4 identities × 買/賣超
   C. 信用交易金額排行 (4) — 融資融券 × 增/減
   D. 連買天數與爆量   (4) — streak_trust, streak_foreign, surge_daily, surge_weekly
-  E. 集保大戶變動排行 (4) — 比例增幅 × 買/賣, 人數增幅 × 買/賣
+  E. 集保大戶變動排行 (8) — 大戶(1000張) × 買/賣(比例/人數), 大戶(400張以上) × 買/賣
 
 JSON 安全性：
   - 所有 DataFrame 輸出前皆執行 .fillna() + .replace([inf, -inf], None)
@@ -44,7 +44,11 @@ from quant_system_v2.core.volume_screener import (
     daily_volume_surge,
     weekly_volume_ratio,
 )
-from quant_system_v2.core.tdcc_analyzer import large_shareholder_rank
+from quant_system_v2.core.tdcc_analyzer import (
+    LARGE_LEVEL_1000,
+    LARGE_LEVELS_400,
+    large_shareholder_rank,
+)
 from quant_system_v2.utils.filters import (
     SecurityCategory,
     filter_by_type,
@@ -475,73 +479,58 @@ def export_dashboard_json(
         top_n=DEFAULT_TOP_N,
     )
 
-    # ── E. 集保大戶變動排行榜 (4) ──
-    logger.info("[指標群 E] 集保大戶變動排行榜...")
+    # ── E. 集保大戶變動排行榜 (8) — 兩種門檻：大戶(1000)、大戶(400) ──
+    logger.info("[指標群 E] 集保大戶變動排行榜（大戶1000 / 大戶400）...")
 
     if df_tdcc_history is not None and not df_tdcc_history.empty:
         try:
-            df_large = large_shareholder_rank(
-                df_tdcc_history  # 不回傳 top_n，由下方 split 邏輯自行處理正負
+            df_large_1000 = large_shareholder_rank(
+                df_tdcc_history,
+                level_codes=LARGE_LEVEL_1000,
             )
-            if df_large is not None and not df_large.empty:
-                logger.info(
-                    f"  [大戶原始資料] {len(df_large)} 筆"
-                )
-
-                # E1. 大戶比例增幅買 / 賣
-                df_ratio_buy = df_large[df_large["大戶比例增幅"] > 0].copy()
-                df_ratio_buy = df_ratio_buy.sort_values(
-                    "大戶比例增幅", ascending=False
-                ).head(DEFAULT_TOP_N_TDCC)
-                rankings["chip_large_ratio_buy"] = _df_to_safe_list(df_ratio_buy)
-
-                df_ratio_sell = df_large[df_large["大戶比例增幅"] < 0].copy()
-                df_ratio_sell["大戶比例增幅"] = df_ratio_sell[
-                    "大戶比例增幅"
-                ].abs()
-                df_ratio_sell = df_ratio_sell.sort_values(
-                    "大戶比例增幅", ascending=False
-                ).head(DEFAULT_TOP_N_TDCC)
-                rankings["chip_large_ratio_sell"] = _df_to_safe_list(df_ratio_sell)
-
-                # E2. 大戶人數增幅增加 / 減少
-                df_count_buy = df_large[df_large["大戶人數增幅"] > 0].copy()
-                df_count_buy = df_count_buy.sort_values(
-                    "大戶人數增幅", ascending=False
-                ).head(DEFAULT_TOP_N_TDCC)
-                rankings["chip_large_count_buy"] = _df_to_safe_list(df_count_buy)
-
-                df_count_sell = df_large[df_large["大戶人數增幅"] < 0].copy()
-                df_count_sell["大戶人數增幅"] = df_count_sell[
-                    "大戶人數增幅"
-                ].abs()
-                df_count_sell = df_count_sell.sort_values(
-                    "大戶人數增幅", ascending=False
-                ).head(DEFAULT_TOP_N_TDCC)
-                rankings["chip_large_count_sell"] = _df_to_safe_list(df_count_sell)
-
-                logger.info(
-                    f"  [大戶拆分完成] ratio_buy={len(rankings['chip_large_ratio_buy'])}, "
-                    f"ratio_sell={len(rankings['chip_large_ratio_sell'])}, "
-                    f"count_buy={len(rankings['chip_large_count_buy'])}, "
-                    f"count_sell={len(rankings['chip_large_count_sell'])}"
-                )
+            if df_large_1000 is not None and not df_large_1000.empty:
+                logger.info(f"  [大戶1000原始資料] {len(df_large_1000)} 筆")
+                _dispatch_large_rankings(rankings, df_large_1000, "chip_large")
             else:
-                logger.warning("  [大戶] large_shareholder_rank 回傳空，設為 []")
-                _set_empty_large_rankings(rankings)
+                logger.warning("  [大戶1000] large_shareholder_rank 回傳空，設為 []")
+                _set_empty_large_rankings(rankings, ["chip_large"])
+
+            df_large_400 = large_shareholder_rank(
+                df_tdcc_history,
+                level_codes=LARGE_LEVELS_400,
+            )
+            if df_large_400 is not None and not df_large_400.empty:
+                logger.info(f"  [大戶400原始資料] {len(df_large_400)} 筆")
+                _dispatch_large_rankings(rankings, df_large_400, "chip_large400")
+            else:
+                logger.warning("  [大戶400] large_shareholder_rank 回傳空，設為 []")
+                _set_empty_large_rankings(rankings, ["chip_large400"])
+
+            logger.info(
+                f"  [大戶拆分完成] 1000: "
+                f"ratio_buy={len(rankings['chip_large_ratio_buy'])}, "
+                f"ratio_sell={len(rankings['chip_large_ratio_sell'])}, "
+                f"count_buy={len(rankings['chip_large_count_buy'])}, "
+                f"count_sell={len(rankings['chip_large_count_sell'])} | "
+                f"400: "
+                f"ratio_buy={len(rankings['chip_large400_ratio_buy'])}, "
+                f"ratio_sell={len(rankings['chip_large400_ratio_sell'])}, "
+                f"count_buy={len(rankings['chip_large400_count_buy'])}, "
+                f"count_sell={len(rankings['chip_large400_count_sell'])}"
+            )
         except Exception as e:
             logger.error(f"  [大戶] 計算失敗: {e}")
-            _set_empty_large_rankings(rankings)
+            _set_empty_large_rankings(rankings, ["chip_large", "chip_large400"])
     else:
         logger.warning("  [大戶] 無 TDCC 歷史資料，設為 []")
-        _set_empty_large_rankings(rankings)
+        _set_empty_large_rankings(rankings, ["chip_large", "chip_large400"])
 
     # ──────────────────────────────────────────
     # 3. 補全 stock_name、data_date 與 close_price
     # ──────────────────────────────────────────
 
     for key, records in rankings.items():
-        is_tdcc = key.startswith("chip_large_")
+        is_tdcc = key.startswith("chip_large")
         dd = latest_tdcc_date if is_tdcc else d
         rankings[key] = _enrich_records(records, dd, stock_name_map)
         # 為大戶籌碼指標補 close_price
@@ -587,15 +576,54 @@ def export_dashboard_json(
         return False
 
 
-def _set_empty_large_rankings(rankings: dict) -> None:
-    """將四個大戶指標設為空 list（輔助函數，減少重複程式碼）"""
-    for key in [
-        "chip_large_ratio_buy",
-        "chip_large_ratio_sell",
-        "chip_large_count_buy",
-        "chip_large_count_sell",
-    ]:
-        rankings[key] = []
+def _dispatch_large_rankings(
+    rankings: dict, df_large: pd.DataFrame, prefix: str
+) -> None:
+    """將大戶 DataFrame 拆分為 4 個排行榜（比例×買/賣、人數×增/減）寫入 rankings。
+
+    Args:
+        rankings: 待寫入的 rankings dict
+        df_large: large_shareholder_rank 的輸出（含大戶比例增幅/人數增幅欄位）
+        prefix: rankings key 前綴（如 "chip_large"=1000張、"chip_large400"=400張以上）
+    """
+    # E1. 大戶比例增幅買 / 賣
+    df_ratio_buy = df_large[df_large["大戶比例增幅"] > 0].copy()
+    df_ratio_buy = df_ratio_buy.sort_values(
+        "大戶比例增幅", ascending=False
+    ).head(DEFAULT_TOP_N_TDCC)
+    rankings[f"{prefix}_ratio_buy"] = _df_to_safe_list(df_ratio_buy)
+
+    df_ratio_sell = df_large[df_large["大戶比例增幅"] < 0].copy()
+    df_ratio_sell["大戶比例增幅"] = df_ratio_sell[
+        "大戶比例增幅"
+    ].abs()
+    df_ratio_sell = df_ratio_sell.sort_values(
+        "大戶比例增幅", ascending=False
+    ).head(DEFAULT_TOP_N_TDCC)
+    rankings[f"{prefix}_ratio_sell"] = _df_to_safe_list(df_ratio_sell)
+
+    # E2. 大戶人數增幅增加 / 減少
+    df_count_buy = df_large[df_large["大戶人數增幅"] > 0].copy()
+    df_count_buy = df_count_buy.sort_values(
+        "大戶人數增幅", ascending=False
+    ).head(DEFAULT_TOP_N_TDCC)
+    rankings[f"{prefix}_count_buy"] = _df_to_safe_list(df_count_buy)
+
+    df_count_sell = df_large[df_large["大戶人數增幅"] < 0].copy()
+    df_count_sell["大戶人數增幅"] = df_count_sell[
+        "大戶人數增幅"
+    ].abs()
+    df_count_sell = df_count_sell.sort_values(
+        "大戶人數增幅", ascending=False
+    ).head(DEFAULT_TOP_N_TDCC)
+    rankings[f"{prefix}_count_sell"] = _df_to_safe_list(df_count_sell)
+
+
+def _set_empty_large_rankings(rankings: dict, prefixes) -> None:
+    """將指定前綴的大戶指標設為空 list（輔助函數，減少重複程式碼）"""
+    for prefix in prefixes:
+        for suffix in ["ratio_buy", "ratio_sell", "count_buy", "count_sell"]:
+            rankings[f"{prefix}_{suffix}"] = []
 
 
 def _build_merged_history(

@@ -5,9 +5,11 @@ TDCC 集保股權分散分析模組（大戶籌碼變動）
   1. large_shareholder_rank — 大戶比例增幅與人數增幅排名
 
 運算邏輯：
-  - 大戶定義：持股分級 == 15（大於 1,000 張）
+  - 大戶定義依門檻 level_codes 決定：
+      LARGE_LEVEL_1000 = 15（超過 1,000 張）
+      LARGE_LEVELS_400 = [12, 13, 14, 15]（400 張以上）
   - 找出資料中最新與次新兩期，計算比例與人數的絕對差值
-  - 以「大戶比例增幅」降冪排序回傳前 top_n 名
+  - 以「大戶比例增幅」降冪排序回傳（不截斷，由呼叫端 split 正負值）
 
 依賴：
   - config.settings.DEFAULT_TOP_N_TDCC（排名預設值）
@@ -39,23 +41,30 @@ _COUNT_COL = "人數"
 _SHARES_COL = "股數"
 _PCT_COL = "占集保庫存數比例%"
 
-# 大戶分級門檻：持股分級 == 15 代表 > 1,000 張
-_LARGE_LEVEL = 15
+# ── 大戶持股分級門檻（官方代碼）──
+#   12=400-600張, 13=600-800張, 14=800-1000張, 15=超過1000張
+LARGE_LEVEL_1000 = 15               # 大戶(1000)：超過 1,000 張
+LARGE_LEVELS_400 = [12, 13, 14, 15]  # 大戶(400)：400 張以上
+# 預設門檻（向後相容）：大戶(1000)
+_DEFAULT_LARGE_LEVELS = LARGE_LEVEL_1000
 
 
 def large_shareholder_rank(
     df_tdcc_history: pd.DataFrame,
+    level_codes=None,
     top_n: int = DEFAULT_TOP_N_TDCC,
 ) -> pd.DataFrame:
     """
-    計算大戶（>1,000 張）比例增幅與人數增幅排名。
+    計算大戶比例增幅與人數增幅排名。
 
     對傳入的多期 TDCC 歷史資料，找出最新與次新兩期，
-    計算大戶群體的占集保比例與人數變化。
+    計算指定門檻（一組持股分級代碼）下大戶群體的占集保比例與人數變化。
 
     Args:
         df_tdcc_history: 多期合併的 TDCC 集保 DataFrame
             必須包含欄位：日期, 證券代號, 持股分級, 人數, 股數, 占集保庫存數比例%
+        level_codes: 大戶持股分級門檻，可傳單一整數（如 15=大戶1000）或一組
+            代碼（如 LARGE_LEVELS_400=[12,13,14,15]=400張以上）。預設大戶(1000)。
         top_n: 回傳前 N 名（正整數）
 
     Returns:
@@ -102,11 +111,33 @@ def large_shareholder_rank(
         f"[large_shareholder] 比較期間: {prev_date} → {latest_date}"
     )
 
-    # 篩選大戶（持股分級 == 15）
-    df_large = df[df[_LEVEL_COL] == _LARGE_LEVEL].copy()
-    if df_large.empty:
-        logger.warning("[large_shareholder] 無大戶資料（持股分級==15）")
+    # 正規化門檻為一組持股分級代碼（相容單一整數）
+    if level_codes is None:
+        level_codes = _DEFAULT_LARGE_LEVELS
+    if isinstance(level_codes, int):
+        codes = [level_codes]
+    else:
+        codes = list(level_codes)
+    if not codes:
+        logger.warning("[large_shareholder] 未指定任何持股分級門檻")
         return pd.DataFrame()
+
+    # 確保持股分級為數值後，篩選落在門檻內的分級
+    df[_LEVEL_COL] = pd.to_numeric(df[_LEVEL_COL], errors="coerce")
+    df_large = df[df[_LEVEL_COL].isin(codes)].copy()
+    if df_large.empty:
+        logger.warning(f"[large_shareholder] 無大戶資料（持股分級∈{codes}）")
+        return pd.DataFrame()
+
+    # 當門檻涵蓋多個分級（如 400 張以上=12~15），同檔股票會跨多列，
+    # 需按 (日期, 證券代號) 聚合：人數加總、占集保庫存數比例加總。
+    df_large = df_large.groupby([_DATE_COL, _STOCK_ID_COL], as_index=False).agg(
+        **{
+            _COUNT_COL: pd.NamedAgg(column=_COUNT_COL, aggfunc="sum"),
+            _PCT_COL: pd.NamedAgg(column=_PCT_COL, aggfunc="sum"),
+        }
+    )
+    logger.info(f"[large_shareholder] 門檻=持股分級{ codes }，聚合後 {len(df_large)} 檔")
 
     # 拆分最新與次新兩期
     df_latest = df_large[df_large[_DATE_COL] == latest_date].copy()

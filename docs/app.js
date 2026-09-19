@@ -132,6 +132,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         "chip_large_ratio_sell": { tab:"tab-large", title:"大戶比例減", unit:"%", valueKey:"大戶比例增幅", isBuy:false },
         "chip_large_count_buy":  { tab:"tab-large", title:"大戶人數增", unit:"人", valueKey:"大戶人數增幅", isBuy:true },
         "chip_large_count_sell": { tab:"tab-large", title:"大戶人數減", unit:"人", valueKey:"大戶人數增幅", isBuy:false },
+        // 7b. 大戶(400)增減 (4) — 400 張以上
+        "chip_large400_ratio_buy":  { tab:"tab-large400", title:"大戶比例增", unit:"%", valueKey:"大戶比例增幅", isBuy:true },
+        "chip_large400_ratio_sell": { tab:"tab-large400", title:"大戶比例減", unit:"%", valueKey:"大戶比例增幅", isBuy:false },
+        "chip_large400_count_buy":  { tab:"tab-large400", title:"大戶人數增", unit:"人", valueKey:"大戶人數增幅", isBuy:true },
+        "chip_large400_count_sell": { tab:"tab-large400", title:"大戶人數減", unit:"人", valueKey:"大戶人數增幅", isBuy:false },
     };
 
     // ──────────────────────────────────────────
