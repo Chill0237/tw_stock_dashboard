@@ -7,8 +7,11 @@
 
 運作方式：
   1. 掃描 daily_chip / daily_price / daily_margin 目錄，取三表交集日期
-  2. 按時間順序（舊→新）遍歷，對每個日期呼叫 export_dashboard_json_safe()
-  3. 自動刷新 latest.json + dates.json
+  2. 僅取交集中最新的 DASHBOARD_RETENTION_DAYS（=22）個日期重算：
+     更舊的 dashboard 產出後會被 _write_static_api_files 依保留策略刪除，
+     重算是白工，故跳過以節省時間。
+  3. 對每個日期呼叫 export_dashboard_json_safe()
+  4. 自動刷新 latest.json + dates.json
 
 執行方式：
   python3 -m quant_system_v2.regenerate_json
@@ -28,6 +31,7 @@ if _project_root not in sys.path:
 _pkg_root = os.path.dirname(os.path.abspath(__file__))  # quant_system_v2/
 
 from quant_system_v2.api.export_json import (
+    DASHBOARD_RETENTION_DAYS,
     export_dashboard_json_safe,
     _write_static_api_files,
 )
@@ -85,13 +89,21 @@ def main() -> None:
         sys.exit(1)
 
     # ──────────────────────────────────────────
-    # 2. 依序重算（舊 → 新）
+    # 2. 依序重算（僅保留期間內最新 DASHBOARD_RETENTION_DAYS 個）
     # ──────────────────────────────────────────
+    # 更舊的 dashboard 產出後會被 _write_static_api_files 依保留策略刪除，
+    # 掃描全部歷史重算是白工，故只重算會實際保留下來的日期。
+    recalc_dates = common_dates[-DASHBOARD_RETENTION_DAYS:]
+    logger.info(
+        f"僅重算保留期間內最近 {len(recalc_dates)} 個交易日 "
+        f"(共 {len(common_dates)} 個交集日，更舊者省略)"
+    )
+
     success_count = 0
     fail_count = 0
 
-    for idx, date_str in enumerate(common_dates, 1):
-        logger.info(f"[{idx:2d}/{len(common_dates)}] 重算 {date_str} ...")
+    for idx, date_str in enumerate(recalc_dates, 1):
+        logger.info(f"[{idx:2d}/{len(recalc_dates)}] 重算 {date_str} ...")
         try:
             # 傳遞 history_max_date=date_str，確保 streak/surge 指標只看目標日期以前的資料
             result_path = export_dashboard_json_safe(date_str, history_max_date=date_str)
