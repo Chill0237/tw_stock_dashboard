@@ -181,7 +181,7 @@ DASHBOARD_RETENTION_DAYS = 22
 與使用者約定的資料保留策略：
   - daily_price: 490 日
   - daily_chip/margin: 30 日
-  - weekly_tdcc: 6 週
+  - weekly_tdcc: 9 期
   - dashboard json: 22 日
 """
 

@@ -5,7 +5,7 @@
   - price:  490 筆（由舊到新，ascending）
   - margin:  30 筆
   - chip:    30 筆
-  - tdcc:     5 筆
+  - tdcc:     9 筆
 
 前端 K 線圖慣例：資料由舊到新（ascending by date）。
 
@@ -79,7 +79,7 @@ logger = logging.getLogger(__name__)
 PRICE_MAX_RECORDS = 490      # 價量保留筆數
 MARGIN_MAX_RECORDS = 30      # 融資券保留筆數
 CHIP_MAX_RECORDS = 30        # 法人籌碼保留筆數
-TDCC_MAX_RECORDS = 5         # 集保保留期數
+TDCC_MAX_RECORDS = 9         # 集保保留期數（供前端逐週比較 8 次）
 
 MA_WINDOWS = [5, 10, 20, 60, 120, 240]
 MA_COLUMNS = {w: f"ma{w}" for w in MA_WINDOWS}
