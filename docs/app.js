@@ -94,7 +94,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await WatchlistStore.init();
 
     // ──────────────────────────────────────────
-    // 28 項指標對照表（7 個頁籤）
+    // 40 項指標對照表（8 個排行頁籤 + 自選）
     // ──────────────────────────────────────────
     const METRIC_CONFIGS = {
         // 1. 法人買超（金額）(4) — 後端單位為千元
@@ -107,16 +107,25 @@ document.addEventListener("DOMContentLoaded", async () => {
         "buysell_foreign_sell_amount": { tab:"tab-sell-amount", title:"外資賣超",            unit:"百萬元", valueKey:"value", isBuy:false },
         "buysell_trust_sell_amount":   { tab:"tab-sell-amount", title:"投信賣超",            unit:"百萬元", valueKey:"value", isBuy:false },
         "buysell_prop_sell_amount":    { tab:"tab-sell-amount", title:"自營商賣超",          unit:"百萬元", valueKey:"value", isBuy:false },
-        // 3. 法人買超（張數）(4)
-        "buysell_total_buy_shares":    { tab:"tab-buy-shares", title:"三大法人買超",        unit:"張", valueKey:"value", isBuy:true },
-        "buysell_foreign_buy_shares":  { tab:"tab-buy-shares", title:"外資買超",            unit:"張", valueKey:"value", isBuy:true },
-        "buysell_trust_buy_shares":    { tab:"tab-buy-shares", title:"投信買超",            unit:"張", valueKey:"value", isBuy:true },
-        "buysell_prop_buy_shares":     { tab:"tab-buy-shares", title:"自營商買超",          unit:"張", valueKey:"value", isBuy:true },
-        // 4. 法人賣超（張數）(4)
-        "buysell_total_sell_shares":   { tab:"tab-sell-shares", title:"三大法人賣超",        unit:"張", valueKey:"value", isBuy:false },
-        "buysell_foreign_sell_shares": { tab:"tab-sell-shares", title:"外資賣超",            unit:"張", valueKey:"value", isBuy:false },
-        "buysell_trust_sell_shares":   { tab:"tab-sell-shares", title:"投信賣超",            unit:"張", valueKey:"value", isBuy:false },
-        "buysell_prop_sell_shares":    { tab:"tab-sell-shares", title:"自營商賣超",          unit:"張", valueKey:"value", isBuy:false },
+        // 3. 法人 5 日累計買超（金額）(4) — 後端單位為千元（最近 5 個交易日累計）
+        "buysell5d_total_buy_amount":   { tab:"tab-inst-5d", title:"三大法人 5 日買超", unit:"百萬元", valueKey:"value", isBuy:true },
+        "buysell5d_foreign_buy_amount": { tab:"tab-inst-5d", title:"外資 5 日買超",     unit:"百萬元", valueKey:"value", isBuy:true },
+        "buysell5d_trust_buy_amount":   { tab:"tab-inst-5d", title:"投信 5 日買超",     unit:"百萬元", valueKey:"value", isBuy:true },
+        "buysell5d_prop_buy_amount":    { tab:"tab-inst-5d", title:"自營商 5 日買超",   unit:"百萬元", valueKey:"value", isBuy:true },
+        // 4. 法人 5 日累計賣超（金額）(4)
+        "buysell5d_total_sell_amount":   { tab:"tab-inst-5d", title:"三大法人 5 日賣超", unit:"百萬元", valueKey:"value", isBuy:false },
+        "buysell5d_foreign_sell_amount": { tab:"tab-inst-5d", title:"外資 5 日賣超",     unit:"百萬元", valueKey:"value", isBuy:false },
+        "buysell5d_trust_sell_amount":   { tab:"tab-inst-5d", title:"投信 5 日賣超",     unit:"百萬元", valueKey:"value", isBuy:false },
+        "buysell5d_prop_sell_amount":    { tab:"tab-inst-5d", title:"自營商 5 日賣超",   unit:"百萬元", valueKey:"value", isBuy:false },
+        // 4b. 法人 10 日累計買賣超（金額）(8) — 最近 10 個交易日累計
+        "buysell10d_total_buy_amount":   { tab:"tab-inst-10d", title:"三大法人 10 日買超", unit:"百萬元", valueKey:"value", isBuy:true },
+        "buysell10d_foreign_buy_amount": { tab:"tab-inst-10d", title:"外資 10 日買超",     unit:"百萬元", valueKey:"value", isBuy:true },
+        "buysell10d_trust_buy_amount":   { tab:"tab-inst-10d", title:"投信 10 日買超",     unit:"百萬元", valueKey:"value", isBuy:true },
+        "buysell10d_prop_buy_amount":    { tab:"tab-inst-10d", title:"自營商 10 日買超",   unit:"百萬元", valueKey:"value", isBuy:true },
+        "buysell10d_total_sell_amount":   { tab:"tab-inst-10d", title:"三大法人 10 日賣超", unit:"百萬元", valueKey:"value", isBuy:false },
+        "buysell10d_foreign_sell_amount": { tab:"tab-inst-10d", title:"外資 10 日賣超",     unit:"百萬元", valueKey:"value", isBuy:false },
+        "buysell10d_trust_sell_amount":   { tab:"tab-inst-10d", title:"投信 10 日賣超",     unit:"百萬元", valueKey:"value", isBuy:false },
+        "buysell10d_prop_sell_amount":    { tab:"tab-inst-10d", title:"自營商 10 日賣超",   unit:"百萬元", valueKey:"value", isBuy:false },
         // 5. 融資券增減 (4) — 後端單位為千元
         "margin_fin_buy":    { tab:"tab-margin", title:"融資增加",      unit:"百萬元", valueKey:"value", isBuy:true },
         "margin_fin_sell":   { tab:"tab-margin", title:"融資減少",      unit:"百萬元", valueKey:"value", isBuy:false },

@@ -1,15 +1,15 @@
 """
-JSON Dashboard 匯出模組 — 28 項量化指標完整匯出
+JSON Dashboard 匯出模組 — 40 項量化指標完整匯出
 
 職責範圍：
   1. 讀取 Parquet 資料（依賴 database.storage）
-  2. 呼叫 Core 模組進行 28 項運算
+  2. 呼叫 Core 模組進行 40 項運算
   3. 將結果轉換為 JSON-safe 格式並寫入檔案
   4. 同步維護 latest.json / dates.json（Static Web API 架構）
 
-28 項指標結構：
-  A. 法人金額排行榜 (8)  — 4 identities × 買/賣超
-  B. 法人張數排行榜 (8)  — 4 identities × 買/賣超
+40 項指標結構：
+  A. 法人單日金額排行榜 (8)  — 4 identities × 買/賣超
+  B. 法人 5/10 日累計金額排行 (16) — 2 windows × 4 identities × 買/賣超
   C. 信用交易金額排行 (4) — 融資融券 × 增/減
   D. 連買天數與爆量   (4) — streak_trust, streak_foreign, surge_daily, surge_weekly
   E. 集保大戶變動排行 (8) — 大戶(1000張) × 買/賣(比例/人數), 大戶(400張以上) × 買/賣
@@ -19,7 +19,7 @@ JSON 安全性：
   - 確保前端不會因 NaN / Infinity 崩潰
 
 防呆原則：
-  - 每個指標獨立 try-except，單一指標失敗不影響其他 27 項
+  - 每個指標獨立 try-except，單一指標失敗不影響其他指標
 """
 
 import json
@@ -36,6 +36,7 @@ import pandas as pd
 from quant_system_v2.config.settings import DEFAULT_TOP_N, DEFAULT_TOP_N_TDCC
 from quant_system_v2.database.storage import load_dataframe, load_recent_dataframes, load_dataframes_up_to
 from quant_system_v2.core.chip_analyzer import (
+    institutional_buysell_period_rank,
     institutional_buysell_summary,
     institutional_streak,
 )
@@ -176,6 +177,12 @@ def _enrich_records(
     return records
 
 
+PERIOD_WINDOWS = (5, 10)
+"""法人累計買賣超的視窗天數（最近 N 個交易日）。
+
+對應指標群 B 的 5 日 / 10 日排名（buysell{N}d_{identity}_{dir}_amount）。
+"""
+
 DASHBOARD_RETENTION_DAYS = 22
 """Dashboard JSON 保留天數（交易日）。超過此數量的較舊檔案將被刪除。
 與使用者約定的資料保留策略：
@@ -253,7 +260,7 @@ def export_dashboard_json(
     history_max_date: Optional[str] = None,
 ) -> bool:
     """
-    主控函數：讀取資料 → 28 項指標運算 → 匯出 JSON。
+    主控函數：讀取資料 → 40 項指標運算 → 匯出 JSON。
 
     Args:
         date_str: 日期字串，YYYYMMDD 或 YYYY-MM-DD
@@ -369,7 +376,7 @@ def export_dashboard_json(
             pass
 
     # ──────────────────────────────────────────
-    # 2. 執行各項運算（28 項指標）
+    # 2. 執行各項運算（40 項指標）
     # ──────────────────────────────────────────
 
     rankings = {}
@@ -399,30 +406,40 @@ def export_dashboard_json(
                 ascending=_asc,
             )
 
-    # ── B. 法人張數排行榜 (8) ──
-    logger.info("[指標群 B] 法人張數排行榜...")
+    # ── B. 法人 5/10 日累計買賣超（金額）(16) ──
+    # 2 個視窗 × 4 種法人 × 買/賣超，依最近 N 個交易日累計金額（千元）排名。
+    # 資料來源 merged_history（chip + price 合併）已由上層以 history_max_date
+    # 過濾日期上限，回補時不會看到未來資料。
+    logger.info("[指標群 B] 法人 5/10 日累計買賣超排行...")
 
-    for _id, _id_label in [
-        ("total", "三大法人"),
-        ("foreign", "外資"),
-        ("trust", "投信"),
-        ("prop", "自營商"),
-    ]:
-        for _asc, _dir_suffix, _dir_label in [
-            (False, "buy", "買超"),
-            (True, "sell", "賣超"),
-        ]:
-            key = f"buysell_{_id}_{_dir_suffix}_shares"
-            rankings[key] = _call_metric(
-                f"法人{_id_label}{_dir_label}張數",
-                institutional_buysell_summary,
-                df_chip_single,
-                df_price_single,
-                identity=_id,
-                sort_by="shares",
-                top_n=DEFAULT_TOP_N,
-                ascending=_asc,
-            )
+    if merged_history is None or merged_history.empty:
+        logger.warning("  [累計買賣超] merged_history 為空，16 個指標設為 []")
+        for _w in PERIOD_WINDOWS:
+            for _id in ("total", "foreign", "trust", "prop"):
+                for _dir_suffix in ("buy", "sell"):
+                    rankings[f"buysell{_w}d_{_id}_{_dir_suffix}_amount"] = []
+    else:
+        for _w in PERIOD_WINDOWS:
+            for _id, _id_label in [
+                ("total", "三大法人"),
+                ("foreign", "外資"),
+                ("trust", "投信"),
+                ("prop", "自營商"),
+            ]:
+                for _asc, _dir_suffix, _dir_label in [
+                    (False, "buy", "買超"),
+                    (True, "sell", "賣超"),
+                ]:
+                    key = f"buysell{_w}d_{_id}_{_dir_suffix}_amount"
+                    rankings[key] = _call_metric(
+                        f"法人{_id_label}{_w}日累計{_dir_label}",
+                        institutional_buysell_period_rank,
+                        merged_history,
+                        identity=_id,
+                        days=_w,
+                        top_n=DEFAULT_TOP_N,
+                        ascending=_asc,
+                    )
 
     # ── C. 信用交易金額排行榜 (4) ──
     logger.info("[指標群 C] 信用交易金額排行榜...")

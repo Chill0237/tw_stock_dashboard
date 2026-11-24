@@ -4,6 +4,7 @@
 職責範圍：
   1. institutional_buysell_summary — 法人買賣超排名（支援多法人 × 金額/張數）
   2. institutional_streak — 法人連續買超掃描（含強度計算）
+  3. institutional_buysell_period_rank — 法人 N 日累計買賣超排名（金額）
 
 依賴：
   - config.settings.DEFAULT_TOP_N（排名預設值）
@@ -302,3 +303,141 @@ def institutional_streak(
 
     logger.info(f"[streak] {force_type} 連買: {len(df_res)} 筆")
     return df_res.reset_index(drop=True)
+
+
+def institutional_buysell_period_rank(
+    df_history: pd.DataFrame,
+    identity: str = "total",
+    days: int = 5,
+    top_n: int = DEFAULT_TOP_N,
+    ascending: bool = False,
+) -> pd.DataFrame:
+    """
+    計算最近 N 個交易日的法人累計買賣超排名（金額維度）。
+
+    從多日合併資料（籌碼 + 價量）取最新的 days 個不同交易日，
+    逐日累計法人買賣超，換算為累計金額（股數 × 當日收盤價）後排名。
+
+    日期視窗由 df_history 本身決定：呼叫端（export_json）已確保
+    資料不晚於基準日（每日執行時 load_recent_dataframes 取最新 30 日；
+    回補時以 history_max_date 過濾），故本函數取「最新 days 個日期」
+    即為截至基準日的最近 N 個交易日，回補時不會看到未來資料。
+
+    Args:
+        df_history: 多日合併的籌碼 + 價量 DataFrame（同 institutional_streak 輸入）
+            必須包含欄位：stock_id, date, {identity 對應的買賣超欄位}, close_price
+            可選：stock_name
+        identity: 法人身份
+            'foreign' — 外資（不含自營商）
+            'trust'   — 投信
+            'prop'    — 自營商（自行買賣+避險）
+            'total'   — 三大法人合計
+        days: 累計天數（最近 N 個交易日，正整數）
+        top_n: 回傳前 N 名（正整數）
+        ascending: 排序方向
+            False — 買超榜（高到低）
+            True  — 賣超榜（低到高，即負值在前）
+
+    Returns:
+        DataFrame 欄位：
+          stock_id, stock_name,
+          close_price（視窗內最新收盤價）,
+          value（累計金額千元，即排序標的，保留兩位小數）,
+          shares（累計張數，保留兩位小數）,
+          days_count（實際覆蓋天數；新上市/暫停交易等可能少於 days）
+        若缺少必要欄位或資料為空則回傳空的 DataFrame
+
+    Raises:
+        ValueError: 若 identity 不支援或 days 非正整數
+    """
+    if df_history is None or df_history.empty:
+        logger.warning("[period_rank] 傳入空的 df_history")
+        return pd.DataFrame()
+
+    if identity not in _IDENTITY_COLUMN_MAP:
+        raise ValueError(
+            f"[period_rank] 不支援的 identity: {identity}，"
+            f"可用: {list(_IDENTITY_COLUMN_MAP.keys())}"
+        )
+    if not isinstance(days, int) or days < 1:
+        raise ValueError(f"[period_rank] days 必須為正整數，收到: {days}")
+
+    target_col = _IDENTITY_COLUMN_MAP[identity]
+
+    # 檢查必要欄位
+    required_cols = ["stock_id", "date", target_col, _CLOSE_COL]
+    missing = [c for c in required_cols if c not in df_history.columns]
+    if missing:
+        logger.warning(f"[period_rank] 缺少必要欄位: {missing}")
+        return pd.DataFrame()
+
+    df = df_history.copy()
+    for _col in (target_col, _CLOSE_COL):
+        df[_col] = pd.to_numeric(df[_col], errors="coerce").fillna(0)
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    # 視窗 = 資料中最新的 days 個不同交易日
+    window_dates = sorted(df["date"].dropna().unique(), reverse=True)[:days]
+    if len(window_dates) == 0:
+        logger.warning("[period_rank] 無有效日期")
+        return pd.DataFrame()
+
+    df_win = df[df["date"].isin(window_dates)]
+    if df_win.empty:
+        logger.warning("[period_rank] 視窗內無資料")
+        return pd.DataFrame()
+
+    # 過濾權證（防禦性，與其他函數一致）
+    df_win = filter_active_equities(df_win, id_col="stock_id")
+    if df_win.empty:
+        logger.warning("[period_rank] 過濾權證後無資料")
+        return pd.DataFrame()
+
+    # 逐日衍生值：張數 = 股數 / 1,000
+    #             金額(千元) = 股數 × 當日收盤價 / 1,000
+    df_win["row_shares"] = df_win[target_col] / 1000
+    df_win["row_amount"] = df_win[target_col] * df_win[_CLOSE_COL] / 1000
+
+    # 聚合：累計金額 / 累計張數 / 實際覆蓋天數
+    agg = (
+        df_win.groupby("stock_id")
+        .agg(
+            amount=("row_amount", "sum"),
+            shares=("row_shares", "sum"),
+            days_count=("date", "nunique"),
+        )
+        .reset_index()
+    )
+
+    # 視窗內最新收盤價與股名（每檔取日期最大的一列）
+    df_sorted = df_win.sort_values(["stock_id", "date"])
+    latest_cols = ["stock_id", _CLOSE_COL] + (
+        ["stock_name"] if "stock_name" in df_sorted.columns else []
+    )
+    latest = df_sorted.groupby("stock_id", as_index=False).tail(1)[latest_cols]
+
+    merged = pd.merge(agg, latest, on="stock_id", how="left")
+
+    # 排序（賣超榜 ascending=True，負值在前）
+    merged = merged.sort_values(by="amount", ascending=ascending).head(top_n)
+
+    result = pd.DataFrame({
+        "stock_id": merged["stock_id"].values,
+        "stock_name": (
+            merged["stock_name"].values
+            if "stock_name" in merged.columns
+            else ""
+        ),
+        "close_price": merged[_CLOSE_COL].round(2).values,
+        "value": merged["amount"].round(2).values,
+        "shares": merged["shares"].round(2).values,
+        "days_count": merged["days_count"].astype(int).values,
+    })
+
+    logger.info(
+        f"[period_rank] 完成: {len(result)} 筆, identity={identity}, "
+        f"days={days}, 視窗={len(window_dates)} 日, "
+        f"top1_value={result['value'].iloc[0] if not result.empty else 'N/A'}"
+    )
+    return result.reset_index(drop=True)
+
